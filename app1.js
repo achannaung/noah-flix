@@ -115,6 +115,12 @@ en: {
   docTitle: "Noah-Flix — Stream Movies & TV Shows",
   navHome: "Home", navTV: "TV Shows", navMovies: "Movies", navMyList: "My List",
   notifications: "Notifications", profile: "Profile",
+  whosWatching: "Who's watching?", manageProfiles: "Manage Profiles", done: "Done",
+  addProfile: "Add Profile", editProfile: "Edit Profile", profileName: "Name",
+  kidsProfileLabel: "Kids profile", kidsProfileHint: "Only kid-friendly titles — Animation & Family genres",
+  kidsBadge: "KIDS", deleteProfile: "Delete Profile", saveProfile: "Save", cancel: "Cancel",
+  kidsMovies: "Kids Movies", kidsTV: "Kids TV Shows", animationRow: "Animation",
+  familyRow: "Family Movies & Shows", kidsRowNote: "Animation & Family",
   navAria: "Browse", filterAria: "Filter titles", heroAria: "Featured title",
   searchPlaceholder: "Titles, people, genres", searchAria: "Search titles",
   browseBy: "Browse by", fType: "Type", fGenre: "Genre", fCountry: "Country", fYear: "Year",
@@ -179,7 +185,7 @@ en: {
   noMatchHTML: "<strong>No titles matched “{x}”.</strong><br>Check the spelling, or try a shorter title.",
   noMatchOffline: "<strong>No match in the offline snapshot, and TMDB search needs a connection.</strong>",
   nothingFound: "Nothing found.",
-  myListEmpty: "<strong>Your list is empty for this session.</strong><br>Tap “My List” on any title to keep it here while this tab stays open.",
+  myListEmpty: "<strong>Your list is empty.</strong><br>Tap “My List” on any title to keep it here — it is saved for this profile on this device.",
   filterLoading: "Loading…",
   filterOfflineMsg: "TMDB unreachable — results filtered from the built-in snapshot",
   filterSuffixLive: " · TMDB discover", filterSuffixLocal: " · offline snapshot",
@@ -191,6 +197,12 @@ my: {
   docTitle: "Noah-Flix — ရုပ်ရှင်နှင့် TV အစီအစဉ်များ ကြည့်ရှုရန်",
   navHome: "ပင်မစာမျက်နှာ", navTV: "TV အစီအစဉ်များ", navMovies: "ရုပ်ရှင်များ", navMyList: "ကျွန်ုပ်၏စာရင်း",
   notifications: "အကြောင်းကြားချက်များ", profile: "ပရိုဖိုင်",
+  whosWatching: "ဘယ်သူ ကြည့်နေတာလဲ?", manageProfiles: "ပရိုဖိုင်များ စီမံရန်", done: "ပြီးပါပြီ",
+  addProfile: "ပရိုဖိုင် အသစ်ထည့်ရန်", editProfile: "ပရိုဖိုင် ပြင်ဆင်ရန်", profileName: "အမည်",
+  kidsProfileLabel: "ကလေး ပရိုဖိုင်", kidsProfileHint: "ကလေးအတွက် သင့်တော်သော ဇာတ်ကားများသာ — ကာတွန်းနှင့် မိသားစု အမျိုးအစားများ",
+  kidsBadge: "ကလေး", deleteProfile: "ပရိုဖိုင် ဖျက်ရန်", saveProfile: "သိမ်းရန်", cancel: "မလုပ်တော့ပါ",
+  kidsMovies: "ကလေး ရုပ်ရှင်များ", kidsTV: "ကလေး TV အစီအစဉ်များ", animationRow: "ကာတွန်းများ",
+  familyRow: "မိသားစု ဇာတ်ကားများ", kidsRowNote: "ကာတွန်းနှင့် မိသားစု",
   navAria: "ရှာဖွေရန်", filterAria: "ခေါင်းစဉ်များ စစ်ထုတ်ရန်", heroAria: "အထူးခေါင်းစဉ်",
   searchPlaceholder: "ခေါင်းစဉ်၊ သရုပ်ဆောင်၊ အမျိုးအစား ရှာရန်", searchAria: "ခေါင်းစဉ်ရှာရန်",
   browseBy: "အမျိုးအစားအလိုက်", fType: "အမျိုးအစား", fGenre: "ဇာတ်လမ်းအမျိုးအစား", fCountry: "နိုင်ငံ", fYear: "ခုနှစ်",
@@ -255,7 +267,7 @@ my: {
   noMatchHTML: "<strong>“{x}” နှင့် ကိုက်ညီသော ခေါင်းစဉ် မတွေ့ပါ။</strong><br>စာလုံးပေါင်း စစ်ကြည့်ပါ သို့မဟုတ် ခေါင်းစဉ် တိုတိုဖြင့် ရှာကြည့်ပါ။",
   noMatchOffline: "<strong>အော့ဖ်လိုင်း snapshot တွင် မတွေ့ပါ၊ TMDB ရှာဖွေမှုအတွက် အင်တာနက် ချိတ်ဆက်မှု လိုအပ်ပါသည်။</strong>",
   nothingFound: "ဘာမှ မတွေ့ပါ။",
-  myListEmpty: "<strong>ဤ session အတွက် သင့်စာရင်း ဗလာဖြစ်နေသည်။</strong><br>ခေါင်းစဉ်တစ်ခုခုတွင် “ကျွန်ုပ်၏စာရင်း” ကို နှိပ်ပါက ဤ tab ဖွင့်ထားစဉ် ဤနေရာတွင် သိမ်းထားပေးမည်။",
+  myListEmpty: "<strong>သင့်စာရင်း ဗလာဖြစ်နေသည်။</strong><br>ခေါင်းစဉ်တစ်ခုခုတွင် “ကျွန်ုပ်၏စာရင်း” ကို နှိပ်ပါ — ဤ profile အတွက် ဤစက်တွင် သိမ်းထားပေးမည်။",
   filterLoading: "ရယူနေသည်…",
   filterOfflineMsg: "TMDB သို့ မချိတ်ဆက်နိုင်ပါ — snapshot မှ စစ်ထုတ်ထားသော ရလဒ်များ",
   filterSuffixLive: " · TMDB မှ", filterSuffixLocal: " · အော့ဖ်လိုင်း snapshot",
@@ -318,6 +330,7 @@ function setLang(l){
   renderHistory();
   loadHome();
   loadPeople();
+  if (typeof refreshProfileUI === "function") refreshProfileUI();
   if (filtersActive()) applyFilters();
 }
 

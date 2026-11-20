@@ -128,7 +128,7 @@ var FALLBACK_PEOPLE = [
 ];
 /* ---------------- State & helpers ---------------- */
 var store = {};            /* key "movie:123" -> item */
-var myList = {};           /* same keys, session only */
+var myList = {};           /* same keys; persisted per profile (see Profiles) */
 var heroItems = [], heroIdx = 0, heroTimer = null, heroFlip = false;
 var currentItem = null;
 
@@ -270,7 +270,7 @@ function top10HTML(it, idx){
 }
 function renderTop10(list, offline){
   var el = $("row-top10"); if(!el) return;
-  var clean = (list||[]).filter(function(it){return it && it.poster_path;}).slice(0,10);
+  var clean = kidsFilter((list||[]).filter(function(it){return it && it.poster_path;})).slice(0,10);
   register(clean);
   el.innerHTML = clean.map(function(it,i){return top10HTML(it,i);}).join("");
   var note = $("top10Note");
@@ -405,7 +405,7 @@ function simCardHTML(it){
 }
 function renderSimilar(list){
   var wrap=$("similarWrap"), grid=$("similarGrid"); if(!wrap||!grid) return;
-  var clean=(list||[]).filter(function(it){return it && it.id && (it.poster_path||it.backdrop_path);}).slice(0,9);
+  var clean=kidsFilter((list||[]).filter(function(it){return it && it.id && (it.poster_path||it.backdrop_path);})).slice(0,9);
   if(!clean.length){ wrap.style.display="none"; grid.innerHTML=""; return; }
   register(clean); wrap.style.display="block"; grid.innerHTML=clean.map(simCardHTML).join("");
   grid.querySelectorAll("[data-sim]").forEach(function(b){ b.onclick=function(){ var it2=store[b.getAttribute("data-sim")]; if(it2){ openModal(it2,false); $("overlay").scrollTop=0; } }; });
@@ -500,7 +500,7 @@ function processCredits(cast){
   return out.slice(0, 48);
 }
 function fillPersonGrid(list, offline){
-  var clean = (list || []).filter(function(it){ return it && it.poster_path; });
+  var clean = kidsFilter((list || []).filter(function(it){ return it && it.poster_path; }));
   register(clean);
   $("altGrid").innerHTML = clean.map(cardHTML).join("");
   var e = $("altEmpty");
@@ -633,7 +633,7 @@ function restartHeroTimer(){
   }, 9000);
 }
 
-/* ---------------- My List (session only) ---------------- */
+/* ---------------- My List (per profile, localStorage) ---------------- */
 function syncListBtn(btn, it){
   if (!btn || !it) return;
   var inList = !!myList[keyOf(it)];
@@ -643,31 +643,364 @@ function syncListBtn(btn, it){
 function toggleList(it, btn){
   var k = keyOf(it);
   if (myList[k]) delete myList[k]; else { myList[k] = it; register([it]); }
+  saveMyList();
   syncListBtn(btn, it);
   if (currentItem && keyOf(currentItem) === k) syncListBtn($("modalList"), it);
   if ($("altView").style.display !== "none" && altKind === "mylist") showMyList();
 }
 
-/* ---------------- Watch history (localStorage) ----------------
+/* ---------------- Profiles & Kids Mode ----------------
+   Netflix-style profiles in localStorage ("noahflix.profiles.v1").
+   First run ships two built-ins — AChan (standard) and Noah (Kids) —
+   and shows the "Who's watching?" gate; the picked profile is
+   remembered, so later visits open straight into it and switching
+   happens from the header avatar menu (no PIN). Manage mode (gate)
+   adds / renames / deletes profiles (max 4) with a Kids toggle.
+   My List and Continue Watching are stored per profile
+   ("noahflix.mylist.<id>" / "noahflix.history.<id>"); the
+   pre-profiles history key is migrated under the default profile.
+   A Kids profile filters the WHOLE catalog to titles whose genres
+   include Animation (16) or Family (10751) — hero, rows, Top 10,
+   search, discover, person filmographies and More Like This — and
+   swaps the standard browse rows for dedicated Kids rows. */
+var PROFILES_KEY = "noahflix.profiles.v1";
+var LEGACY_HISTORY_KEY = "noahflix.watchHistory.v1";
+var MYLIST_PREFIX = "noahflix.mylist.";
+var HISTORY_PREFIX = "noahflix.history.";
+var PROFILE_COLORS = ["#e50914", "#0071eb", "#f5a623", "#00a676"];
+var MAX_PROFILES = 4;
+var profiles = [];
+var activeProfileId = null;
+var gateManage = false, gateCanClose = false, editingProfileId = null;
+var homeKidsRendered = null;   /* kids flag the current home rows were rendered with */
+
+function defaultProfiles(){
+  return [
+    { id: "achan", name: "AChan", kids: false, color: PROFILE_COLORS[0] },
+    { id: "noah", name: "Noah", kids: true, color: PROFILE_COLORS[1] }
+  ];
+}
+function saveProfiles(){
+  try { localStorage.setItem(PROFILES_KEY, JSON.stringify({ list: profiles, active: activeProfileId })); } catch (e) {}
+}
+function activeProfile(){
+  for (var i = 0; i < profiles.length; i++) if (profiles[i].id === activeProfileId) return profiles[i];
+  return profiles[0] || null;
+}
+function isKids(){ var p = activeProfile(); return !!(p && p.kids); }
+function itemGenreIds(it){
+  var ids = [];
+  (it.genre_ids || []).forEach(function(g){ ids.push(g); });
+  (it.genres || []).forEach(function(g){ if (g && g.id != null) ids.push(g.id); });
+  return ids;
+}
+function isKidsSafe(it){
+  if (!it) return false;
+  var ids = itemGenreIds(it);
+  return ids.indexOf(16) !== -1 || ids.indexOf(10751) !== -1;
+}
+function kidsFilter(list){
+  if (!isKids()) return list || [];
+  return (list || []).filter(isKidsSafe);
+}
+function historyStorageKey(){ return HISTORY_PREFIX + (activeProfileId || "achan"); }
+function loadMyListData(){
+  myList = {};
+  if (!activeProfileId) return;
+  try {
+    var raw = localStorage.getItem(MYLIST_PREFIX + activeProfileId);
+    var arr = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(arr)) arr.forEach(function(it){
+      if (it && it.id) { myList[keyOf(it)] = it; register([it]); }
+    });
+  } catch (e) {}
+}
+function saveMyList(){
+  if (!activeProfileId) return;
+  try {
+    localStorage.setItem(MYLIST_PREFIX + activeProfileId,
+      JSON.stringify(Object.keys(myList).map(function(k){ return myList[k]; })));
+  } catch (e) {}
+}
+function initProfiles(){
+  var stored = null;
+  try { stored = JSON.parse(localStorage.getItem(PROFILES_KEY) || "null"); } catch (e) {}
+  if (stored && Array.isArray(stored.list) && stored.list.length) {
+    profiles = stored.list.filter(function(p){ return p && p.id && p.name; }).slice(0, MAX_PROFILES);
+    activeProfileId = stored.active || null;
+    if (activeProfileId && !profiles.some(function(p){ return p.id === activeProfileId; })) activeProfileId = null;
+  }
+  if (!profiles.length) {
+    profiles = defaultProfiles();
+    activeProfileId = null;
+    /* Migrate the pre-profiles watch history under the default profile */
+    try {
+      var legacy = localStorage.getItem(LEGACY_HISTORY_KEY);
+      if (legacy && !localStorage.getItem(HISTORY_PREFIX + "achan"))
+        localStorage.setItem(HISTORY_PREFIX + "achan", legacy);
+      if (legacy) localStorage.removeItem(LEGACY_HISTORY_KEY);
+    } catch (e) {}
+    saveProfiles();
+  }
+  loadMyListData();
+}
+initProfiles();
+
+function profileInitial(p){ return ((p && p.name) || "?").trim().charAt(0).toUpperCase() || "?"; }
+function updateProfileUI(){
+  var p = activeProfile(); if (!p) return;
+  var av = $("profileAvatar");
+  if (av) { av.textContent = profileInitial(p); av.style.background = p.color || PROFILE_COLORS[0]; }
+  var kb = $("kidsBadge");
+  if (kb) { kb.style.display = p.kids ? "inline-flex" : "none"; kb.textContent = t("kidsBadge"); }
+  var btn = $("profileBtn");
+  if (btn) btn.title = p.name;
+}
+function applyProfileLayout(){
+  var kids = isKids();
+  document.body.classList.toggle("kids-mode", kids);
+  document.querySelectorAll("[data-kids-row]").forEach(function(s){ s.style.display = kids ? "" : "none"; });
+  if (kids) {
+    var st = $("starsRow"); if (st) st.style.display = "none";
+    document.querySelectorAll("[data-row]").forEach(function(s){ s.style.display = "none"; });
+  } else {
+    var st2 = $("starsRow"); if (st2) st2.style.display = "";
+  }
+  updateProfileUI();
+}
+function renderGate(){
+  var gate = $("profileGate"); if (!gate) return;
+  $("gateTitle").textContent = gateManage ? t("manageProfiles") : t("whosWatching");
+  $("gateManageBtn").style.display = gateManage ? "none" : "";
+  $("gateDoneBtn").style.display = gateManage ? "" : "none";
+  $("gateClose").style.display = gateCanClose ? "" : "none";
+  var wrap = $("gateTiles"); wrap.innerHTML = "";
+  profiles.forEach(function(p){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "gate-tile";
+    b.setAttribute("aria-label", p.name);
+    b.innerHTML = '<span class="gate-avatar" style="background:' + esc(p.color || PROFILE_COLORS[0]) + '">' + esc(profileInitial(p)) +
+      (gateManage ? '<span class="gate-edit"><i data-lucide="pencil" style="width:17px;height:17px"></i></span>' : "") + '</span>' +
+      '<span class="gate-name">' + esc(p.name) + '</span>' +
+      (p.kids ? '<span class="kids-pill-sm">' + esc(t("kidsBadge")) + '</span>' : "");
+    b.onclick = function(){ if (gateManage) openProfileEditor(p.id); else enterProfile(p.id); };
+    wrap.appendChild(b);
+  });
+  if (profiles.length < MAX_PROFILES) {
+    var add = document.createElement("button");
+    add.type = "button"; add.className = "gate-tile";
+    add.innerHTML = '<span class="gate-avatar gate-avatar-add"><i data-lucide="plus" style="width:34px;height:34px"></i></span>' +
+      '<span class="gate-name">' + esc(t("addProfile")) + '</span>';
+    add.onclick = function(){ openProfileEditor(null); };
+    wrap.appendChild(add);
+  }
+  icons();
+}
+function openGate(manage, canClose){
+  gateManage = !!manage; gateCanClose = !!canClose;
+  closeProfileEditor();
+  renderGate();
+  $("profileGate").style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+function closeGate(){
+  var gate = $("profileGate"); if (gate) gate.style.display = "none";
+  document.body.style.overflow = "";
+  gateManage = false; gateCanClose = false;
+  closeProfileEditor();
+}
+function openProfileEditor(id){
+  editingProfileId = id;
+  var p = null;
+  profiles.forEach(function(x){ if (x.id === id) p = x; });
+  $("profileEditTitle").textContent = p ? t("editProfile") : t("addProfile");
+  $("profileNameInput").value = p ? p.name : "";
+  $("profileKidsToggle").checked = p ? !!p.kids : false;
+  $("profileDeleteBtn").style.display = (p && profiles.length > 1) ? "" : "none";
+  $("profileEditForm").style.display = "block";
+  $("gateTiles").style.display = "none";
+  $("gateActions").style.display = "none";
+}
+function closeProfileEditor(){
+  editingProfileId = null;
+  var f = $("profileEditForm"); if (f) f.style.display = "none";
+  var tiles = $("gateTiles"); if (tiles) tiles.style.display = "";
+  var act = $("gateActions"); if (act) act.style.display = "";
+}
+function saveProfileEditor(){
+  var name = $("profileNameInput").value.trim();
+  if (!name) { $("profileNameInput").focus(); return; }
+  var kids = $("profileKidsToggle").checked;
+  var editedId = editingProfileId;
+  if (editedId) {
+    profiles.forEach(function(x){ if (x.id === editedId) { x.name = name; x.kids = kids; } });
+  } else {
+    if (profiles.length >= MAX_PROFILES) return;
+    var np = { id: "p" + Date.now().toString(36), name: name, kids: kids,
+               color: PROFILE_COLORS[profiles.length % PROFILE_COLORS.length] };
+    profiles.push(np);
+    editedId = np.id;
+  }
+  saveProfiles();
+  closeProfileEditor();
+  renderGate();
+  buildProfileMenu();
+  updateProfileUI();
+  if (editedId === activeProfileId) {
+    if (homeKidsRendered !== isKids()) loadHome();
+    applyProfileLayout();
+  }
+}
+function deleteEditedProfile(){
+  if (!editingProfileId || profiles.length <= 1) return;
+  var wasActive = editingProfileId === activeProfileId;
+  var goneId = editingProfileId;
+  profiles = profiles.filter(function(x){ return x.id !== goneId; });
+  try {
+    localStorage.removeItem(MYLIST_PREFIX + goneId);
+    localStorage.removeItem(HISTORY_PREFIX + goneId);
+  } catch (e) {}
+  if (wasActive) activeProfileId = profiles[0].id;
+  saveProfiles();
+  closeProfileEditor();
+  renderGate();
+  buildProfileMenu();
+  if (wasActive) {
+    loadMyListData();
+    watchHistory = loadHistory();
+    renderHistory();
+    if (homeKidsRendered !== isKids()) loadHome();
+    applyProfileLayout();
+  } else updateProfileUI();
+}
+function enterProfile(id){
+  if (!profiles.some(function(p){ return p.id === id; })) return;
+  var changed = id !== activeProfileId;
+  activeProfileId = id;
+  saveProfiles();
+  closeGate();
+  hideProfileMenu();
+  if (changed) {
+    loadMyListData();
+    watchHistory = loadHistory();
+    renderHistory();
+    if (currentItem) closeModal();
+    resetFilters();
+    showBrowse();
+    if (homeKidsRendered !== isKids()) loadHome();
+    else if (isKids()) loadKidsRows();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  applyProfileLayout();
+}
+function buildProfileMenu(){
+  var list = $("profileMenuList"); if (!list) return;
+  list.innerHTML = "";
+  profiles.forEach(function(p){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "profile-menu-item";
+    b.innerHTML = '<span class="avatar avatar-sm" style="background:' + esc(p.color || PROFILE_COLORS[0]) + '">' + esc(profileInitial(p)) + '</span>' +
+      '<span class="pm-name">' + esc(p.name) + '</span>' +
+      (p.kids ? '<span class="kids-pill-sm">' + esc(t("kidsBadge")) + '</span>' : "") +
+      (p.id === activeProfileId ? '<i data-lucide="check" style="width:15px;height:15px;margin-left:auto;flex:none"></i>' : "");
+    b.onclick = function(){ hideProfileMenu(); if (p.id !== activeProfileId) enterProfile(p.id); };
+    list.appendChild(b);
+  });
+  icons();
+}
+function toggleProfileMenu(){
+  var m = $("profileMenu"); if (!m) return;
+  if (m.style.display !== "none") { hideProfileMenu(); return; }
+  buildProfileMenu();
+  m.style.display = "block";
+  $("profileBtn").setAttribute("aria-expanded", "true");
+}
+function hideProfileMenu(){
+  var m = $("profileMenu"); if (m) m.style.display = "none";
+  var btn = $("profileBtn"); if (btn) btn.setAttribute("aria-expanded", "false");
+}
+function refreshProfileUI(){ renderGate(); buildProfileMenu(); updateProfileUI(); }
+function initProfileUI(){
+  var btn = $("profileBtn");
+  if (btn) btn.addEventListener("click", function(e){ e.stopPropagation(); toggleProfileMenu(); });
+  document.addEventListener("click", function(e){
+    var sw = e.target.closest ? e.target.closest(".profile-switcher") : null;
+    if (!sw) hideProfileMenu();
+  });
+  var mm = $("manageProfilesBtn");
+  if (mm) mm.addEventListener("click", function(){ hideProfileMenu(); openGate(true, true); });
+  $("gateManageBtn").addEventListener("click", function(){ gateManage = true; closeProfileEditor(); renderGate(); });
+  $("gateDoneBtn").addEventListener("click", function(){ gateManage = false; closeProfileEditor(); renderGate(); });
+  $("gateClose").addEventListener("click", function(){ closeGate(); });
+  $("profileSaveBtn").addEventListener("click", saveProfileEditor);
+  $("profileCancelBtn").addEventListener("click", function(){ closeProfileEditor(); renderGate(); });
+  $("profileDeleteBtn").addEventListener("click", deleteEditedProfile);
+  buildProfileMenu();
+  updateProfileUI();
+  applyProfileLayout();
+  if (!activeProfileId) openGate(false, false);
+}
+
+/* ---------------- Kids rows (Kids profiles only) ----------------
+   Dedicated browse rows for Kids mode, filled from TMDB discover
+   (Animation / Family genre queries) and falling back to the same
+   genre filter over the built-in snapshot when TMDB is unreachable. */
+function kidsDiscover(type, genres){
+  return fetchJSON("/discover/" + type, "&page=1&sort_by=popularity.desc&include_adult=false&vote_count.gte=5&with_genres=" + encodeURIComponent(genres))
+    .then(function(d){
+      return (d.results || []).map(function(x){ x.media_type = type; return x; });
+    });
+}
+function kidsRowFallback(kind){
+  var pool = snapshotPool();
+  if (kind === "movies") return pool.filter(function(it){ return typeOf(it) === "movie" && isKidsSafe(it); });
+  if (kind === "tv") return pool.filter(function(it){ return typeOf(it) === "tv" && isKidsSafe(it); });
+  if (kind === "anim") return pool.filter(function(it){ return itemGenreIds(it).indexOf(16) !== -1; });
+  return pool.filter(function(it){ return itemGenreIds(it).indexOf(10751) !== -1; });
+}
+function fillKidsRow(elId, kind, liveList){
+  var list = (liveList && liveList.length) ? kidsFilter(liveList) : kidsRowFallback(kind);
+  list = list.slice().sort(function(a, b){
+    return (b.popularity || 0) - (a.popularity || 0) || (b.vote_average || 0) - (a.vote_average || 0);
+  });
+  renderRow(elId, list);
+}
+function loadKidsRows(){
+  if (!isKids()) return;
+  ["row-kids-movies", "row-kids-tv", "row-kids-anim", "row-kids-family"].forEach(function(id){ skeletons(id, 6); });
+  kidsDiscover("movie", "16|10751")
+    .then(function(l){ fillKidsRow("row-kids-movies", "movies", l); })
+    .catch(function(){ fillKidsRow("row-kids-movies", "movies", null); });
+  kidsDiscover("tv", "16|10751|10762")
+    .then(function(l){ fillKidsRow("row-kids-tv", "tv", l); })
+    .catch(function(){ fillKidsRow("row-kids-tv", "tv", null); });
+  Promise.all([kidsDiscover("movie", "16").catch(function(){ return []; }),
+               kidsDiscover("tv", "16").catch(function(){ return []; })])
+    .then(function(r){ fillKidsRow("row-kids-anim", "anim", r[0].concat(r[1])); });
+  Promise.all([kidsDiscover("movie", "10751").catch(function(){ return []; }),
+               kidsDiscover("tv", "10751").catch(function(){ return []; })])
+    .then(function(r){ fillKidsRow("row-kids-family", "family", r[0].concat(r[1])); });
+}
+
+/* ---------------- Watch history (localStorage, per profile) ----------------
    Every Play press records the title (plus season/episode and the
-   source in use for TV) to localStorage, most recent first. The
-   Continue Watching row renders from that list on every load, so it
-   survives reloads and works in offline snapshot mode too — posters
-   come from the stored TMDB poster paths. */
-var HISTORY_KEY = "noahflix.watchHistory.v1";
+   source in use for TV) to this profile's localStorage key, most
+   recent first. The Continue Watching row renders from that list on
+   every load, so it survives reloads and works in offline snapshot
+   mode too — posters come from the stored TMDB poster paths. */
 var HISTORY_MAX = 24;
 var pendingResume = null;   /* {id, season, episode} while a history card reopens a show */
 var watchHistory = loadHistory();
 function loadHistory(){
   try {
-    var raw = localStorage.getItem(HISTORY_KEY);
+    var raw = localStorage.getItem(historyStorageKey());
     var list = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(list)) return [];
     return list.filter(function(h){ return h && h.id && h.title; }).slice(0, HISTORY_MAX);
   } catch (e) { return []; }
 }
 function saveHistory(){
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(watchHistory)); } catch (e) {}
+  try { localStorage.setItem(historyStorageKey(), JSON.stringify(watchHistory)); } catch (e) {}
 }
 function recordHistory(it){
   if (!it || !it.id) return;
@@ -1048,340 +1381,3 @@ function updateEpNav(){
    it, so the Next Episode button above is the reliable path — this
    listener only fires when an event actually shows up. */
 var lastAutoAdvance = 0;
-window.addEventListener("message", function(ev){
-  if (!currentItem || typeOf(currentItem) !== "tv" || !$("playerFrame")) return;
-  var d = ev.data, ended = false;
-  try {
-    if (typeof d === "string") {
-      try { d = JSON.parse(d); } catch (e) { if (d === "ended") ended = true; }
-    }
-    if (d && typeof d === "object") {
-      if (d.ended === true) ended = true;
-      var raw = d.event || d.type || d.name || (d.data && (d.data.event || d.data.type)) || "";
-      var norm = String(raw).toLowerCase().replace(/[^a-z]/g, "");
-      if (["ended", "playbackended", "playbackfinished", "videocomplete", "complete", "finished"].indexOf(norm) !== -1) ended = true;
-    }
-  } catch (e) {}
-  if (!ended) return;
-  var now = Date.now();
-  if (now - lastAutoAdvance < 5000) return;
-  lastAutoAdvance = now;
-  goEpisode(1);
-});
-function closeModal(){
-  stopPlayer();
-  $("overlay").classList.remove("open");
-  document.body.style.overflow = "";
-  currentItem = null;
-  pendingResume = null;
-}
-
-/* ---------------- Alt view (search / filters / My List) ---------------- */
-var altKind = "";   /* "mylist" while the alt view shows My List (title text is localized, so track it) */
-function showAlt(title, list, emptyHTML){
-  altKind = "";
-  $("altPerson").style.display = "none";
-  setAltPeople(null);
-  $("browse").style.display = "none";
-  $("filterbar").style.display = "none";
-  $("hero").style.display = "none";
-  $("statusbar").style.display = "none";
-  $("topnav").classList.add("scrolled");
-  $("altView").style.display = "block";
-  $("altTitle").textContent = title;
-  register(list);
-  var grid = $("altGrid");
-  grid.innerHTML = (list||[]).filter(function(it){ return it && it.poster_path; }).map(cardHTML).join("");
-  var e = $("altEmpty");
-  if (!list || !list.length) { e.style.display = "block"; e.innerHTML = emptyHTML || t("nothingFound"); }
-  else e.style.display = "none";
-  icons();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-function showBrowse(){
-  $("altView").style.display = "none";
-  $("statusbar").style.display = "flex";
-  $("filterbar").style.display = "";
-  $("browse").style.display = "block";
-  if (filtersActive()) { syncFilterVisibility(); setActiveNav("home"); return; }
-  $("filterView").style.display = "none";
-  $("rowsWrap").style.display = "";
-  $("hero").style.display = "flex";
-  document.querySelectorAll("[data-row]").forEach(function(s){ s.style.display = ""; });
-  setActiveNav("home");
-}
-function showMyList(){
-  var list = Object.keys(myList).map(function(k){ return myList[k]; });
-  showAlt(t("navMyList"), list, t("myListEmpty"));
-  altKind = "mylist";
-  setActiveNav("mylist");
-}
-function setActiveNav(name){
-  document.querySelectorAll(".nav-links button").forEach(function(b){
-    b.classList.toggle("active", b.getAttribute("data-nav") === name);
-  });
-}
-
-/* ---------------- TMDB fetching ----------------
-   fetchJSON walks the connection routes in order (the cached route
-   first, then direct, then the CORS proxies). A network error or
-   timeout moves on to the next route; the first route that answers
-   is cached via setRoute. A 4xx response means the route reached
-   TMDB and TMDB itself refused, so it is not retried elsewhere.
-   Only when every route fails does the promise reject — and callers
-   then render the built-in snapshot. */
-function fetchJSON(path, params){
-  var url = API + path + "?api_key=" + TMDB_API_KEY + "&language=" + tmdbLang() + (params || "");
-  var order = routeOrder();
-  var lastErr = null;
-  function attempt(i){
-    if (i >= order.length) return Promise.reject(lastErr || new Error("TMDB unreachable"));
-    var id = order[i];
-    return fetchWithTimeout(routeWrap(id, url), 12000).then(function(resp){
-      if (resp.ok) { setRoute(id); return resp.json(); }
-      if (resp.status >= 400 && resp.status < 500) { setRoute(id); throw new Error("TMDB " + resp.status); }
-      lastErr = new Error("TMDB " + resp.status);
-      return attempt(i + 1);
-    }, function(err){
-      lastErr = err;
-      return attempt(i + 1);
-    });
-  }
-  return attempt(0);
-}
-/* "Retry live": forget the cached route and re-test the connection
-   from scratch, reloading the live rows, stars and history posters
-   (which pick up whatever route wins, proxy images included). */
-function retryLive(){
-  setRoute("");
-  setStatus(false, "statusConnecting");
-  loadHome();
-  loadPeople();
-  renderHistory();
-  if (filtersActive()) applyFilters();
-}
-function setStatus(live, key){
-  lastStatus = { live: live, key: key };
-  renderStatus();
-}
-/* Home rows: each row pulls the first ROW_PAGES pages of its TMDB
-   endpoint up front (3 pages = 60 titles), deduped by TMDB id, and a
-   "Load more" tile at the end of the scroller fetches the next page
-   on demand until the endpoint runs out. Per-row guard: one failed
-   endpoint must not drop the whole page into snapshot mode — that row
-   alone falls back to the built-in snapshot. */
-var ROW_PAGES = 3;
-var ROW_DEFS = [
-  { key:"trending", el:"row-trending", path:"/trending/all/week", type:null },
-  { key:"movies",   el:"row-movies",   path:"/movie/popular",     type:"movie" },
-  { key:"tv",       el:"row-tv",       path:"/tv/popular",        type:"tv" },
-  { key:"top",      el:"row-top",      path:"/movie/top_rated",   type:"movie" },
-  { key:"now",      el:"row-now",      path:"/movie/now_playing", type:"movie" }
-];
-var rowState = {};   /* row key -> {seen, page, totalPages, live, busy} */
-function fetchRowPage(def, page){
-  return fetchJSON(def.path, "&page=" + page).then(function(d){
-    var list = (d.results || []).map(function(x){
-      if (def.type && !x.media_type) x.media_type = def.type;
-      return x;
-    });
-    return { list: list, totalPages: d.total_pages || page };
-  });
-}
-function freshRowItems(def, list){
-  var st = rowState[def.key], out = [];
-  (list || []).forEach(function(it){
-    if (!it || !it.poster_path) return;
-    var k = keyOf(it);
-    if (st.seen[k]) return;
-    st.seen[k] = 1; out.push(it);
-  });
-  return out;
-}
-function syncMoreTile(def){
-  var st = rowState[def.key], el = $(def.el);
-  if (!el) return;
-  var old = el.querySelector(".more-tile");
-  if (old) old.remove();
-  if (!st.live || st.busy || st.page >= st.totalPages) return;
-  var b = document.createElement("button");
-  b.type = "button";
-  b.className = "card more-tile";
-  b.setAttribute("aria-label", t("loadMore"));
-  b.innerHTML = '<span class="poster"><span class="more-circ"><i data-lucide="chevron-down" style="width:26px;height:26px"></i></span></span>' +
-    '<span class="t">' + t("loadMore") + '</span>' +
-    '<span class="s"><span>' + t("rowMoreSub") + '</span></span>';
-  b.addEventListener("click", function(e){ e.stopPropagation(); loadMoreRow(def.key); });
-  el.appendChild(b);
-  icons();
-}
-function loadMoreRow(key){
-  var def = null;
-  ROW_DEFS.forEach(function(d){ if (d.key === key) def = d; });
-  var st = def && rowState[key];
-  if (!def || !st || !st.live || st.busy || st.page >= st.totalPages) return;
-  st.busy = true; syncMoreTile(def);
-  fetchRowPage(def, st.page + 1).then(function(r){
-    st.busy = false;
-    st.page += 1;
-    st.totalPages = r.totalPages || st.totalPages;
-    var fresh = freshRowItems(def, r.list);
-    register(fresh);
-    var el = $(def.el);
-    if (el && fresh.length) el.insertAdjacentHTML("beforeend", fresh.map(cardHTML).join(""));
-    syncMoreTile(def);
-    icons();
-  }).catch(function(){ st.busy = false; syncMoreTile(def); });
-}
-function loadHome(){
-  loadTop10();
-  ROW_DEFS.forEach(function(def){
-    rowState[def.key] = { seen:{}, page:0, totalPages:1, live:false, busy:false };
-    skeletons(def.el, 8);
-  });
-  var liveCount = 0;
-  var jobs = ROW_DEFS.map(function(def){
-    var st = rowState[def.key];
-    var reqs = [];
-    for (var p = 1; p <= ROW_PAGES; p++) reqs.push(fetchRowPage(def, p));
-    return Promise.all(reqs.map(function(r){
-      return r.then(function(v){ return { ok:true, v:v }; }, function(){ return { ok:false, v:null }; });
-    })).then(function(res){
-      var ok = res.filter(function(r){ return r.ok; });
-      var el = $(def.el);
-      if (!ok.length) {
-        var fb = freshRowItems(def, FALLBACK[def.key]);
-        register(fb);
-        el.innerHTML = fb.map(cardHTML).join("");
-        icons();
-        return FALLBACK[def.key];
-      }
-      liveCount++;
-      st.live = true;
-      var all = [];
-      ok.forEach(function(r, i){
-        st.page = Math.max(st.page, i + 1);
-        st.totalPages = Math.max(st.totalPages, r.v.totalPages || 1);
-        all = all.concat(r.v.list);
-      });
-      var fresh = freshRowItems(def, all);
-      register(fresh);
-      el.innerHTML = fresh.map(cardHTML).join("");
-      syncMoreTile(def);
-      icons();
-      return all;
-    });
-  });
-  Promise.all(jobs).then(function(res){
-    heroItems = res[0].filter(function(it){ return it.backdrop_path && it.overview; }).slice(0, 5);
-    if (!heroItems.length) heroItems = res[0].filter(function(it){ return it.backdrop_path; }).slice(0, 5);
-    heroIdx = 0;
-    if (heroItems.length) { setHero(heroItems[0]); restartHeroTimer(); }
-    var viaProxy = route && route !== "direct";
-    if (liveCount === ROW_DEFS.length) setStatus(true, viaProxy ? "statusProxy" : "statusLive");
-    else if (liveCount > 0) setStatus(true, viaProxy ? "statusProxyPartial" : "statusLivePartial");
-    else setStatus(false, "statusOffline");
-  });
-}
-function doSearch(q){
-  q = (q || "").trim();
-  if (!q) { showBrowse(); return; }
-  showAlt(t("resultsFor", q), [], "<strong>" + t("searchingTMDB") + "</strong>");
-  fetchJSON("/search/multi", "&query=" + encodeURIComponent(q) + "&include_adult=false")
-    .then(function(d){
-      var people = (d.results || []).filter(function(x){ return x.media_type === "person"; });
-      var list = (d.results || []).filter(function(x){
-        return (x.media_type === "movie" || x.media_type === "tv") && x.poster_path;
-      });
-      showAlt(t("resultsFor", q), list, t("noMatchHTML", esc(q)));
-      setAltPeople(people);
-    })
-    .catch(function(){
-      var ql = q.toLowerCase();
-      var local = Object.keys(store).map(function(k){ return store[k]; })
-        .filter(function(it){ return titleOf(it).toLowerCase().indexOf(ql) !== -1; });
-      showAlt(t("resultsFor", q) + t("resultsOfflineSuffix"), local, t("noMatchOffline"));
-      setAltPeople(FALLBACK_PEOPLE.filter(function(p){
-        return p.name.toLowerCase().indexOf(ql) !== -1;
-      }));
-    });
-}
-
-/* ---------------- Filters: type / genre / country / year ----------------
-   Live mode queries TMDB's /discover endpoints (with_genres +
-   with_origin_country + release-year params, popularity order, paged
-   via "Load more"). If TMDB is unreachable, the same filters run
-   client-side over the built-in snapshot pool, so filtering never
-   opens empty offline. */
-var FILTER_GENRES = [
-  { name:"Action",          nameMy:"အက်ရှင်",          movie:28,    tv:10759 },
-  { name:"Adventure",       nameMy:"စွန့်စားခန်း",       movie:12,    tv:10759 },
-  { name:"Animation",       nameMy:"ကာတွန်း",       movie:16,    tv:16 },
-  { name:"Comedy",          nameMy:"ဟာသ",          movie:35,    tv:35 },
-  { name:"Crime",           nameMy:"မှုခင်း",           movie:80,    tv:80 },
-  { name:"Documentary",     nameMy:"မှတ်တမ်းရုပ်ရှင်",     movie:99,    tv:99 },
-  { name:"Drama",           nameMy:"ဒရာမာ",           movie:18,    tv:18 },
-  { name:"Family",          nameMy:"မိသားစု",          movie:10751, tv:10751 },
-  { name:"Fantasy",         nameMy:"စိတ်ကူးယဉ်",         movie:14,    tv:10765 },
-  { name:"History",         nameMy:"သမိုင်း",         movie:36,    tv:null },
-  { name:"Horror",          nameMy:"ထိတ်လန့်ဖွယ်",          movie:27,    tv:9648 },
-  { name:"Kids",            nameMy:"ကလေးများ",            movie:null,  tv:10762 },
-  { name:"Music",           nameMy:"ဂီတ",           movie:10402, tv:null },
-  { name:"Mystery",         nameMy:"လျှို့ဝှက်ဆန်းကြယ်",         movie:9648,  tv:9648 },
-  { name:"Reality",         nameMy:"ရီယယ်လတီ",         movie:null,  tv:10764 },
-  { name:"Romance",         nameMy:"အချစ်",         movie:10749, tv:10766 },
-  { name:"Science Fiction", nameMy:"သိပ္ပံစိတ်ကူးယဉ်", movie:878,   tv:10765 },
-  { name:"Talk",            nameMy:"စကားဝိုင်း",            movie:null,  tv:10767 },
-  { name:"Thriller",        nameMy:"စိတ်လှုပ်ရှားဖွယ်",        movie:53,    tv:null },
-  { name:"War",             nameMy:"စစ်",             movie:10752, tv:10768 },
-  { name:"Western",         nameMy:"အနောက်တိုင်း",         movie:37,    tv:37 }
-];
-/* Country filter options: value is an ISO code, or "WEST" for the
-   Western grouping (US / UK / Canada / Australia), which TMDB's
-   with_origin_country accepts as a pipe-separated OR list. */
-var COUNTRY_LABELS = { WEST:"Western", KR:"South Korea", IN:"India", CN:"China",
-  JP:"Japan", TH:"Thailand", US:"United States", GB:"United Kingdom", FR:"France",
-  DE:"Germany", ES:"Spain", IT:"Italy", CA:"Canada", AU:"Australia", BR:"Brazil",
-  MX:"Mexico", PH:"Philippines", ID:"Indonesia", TW:"Taiwan", HK:"Hong Kong" };
-var COUNTRY_GROUPS = { WEST: ["US","GB","CA","AU"] };
-function countryCodes(){
-  if (!fCountry) return null;
-  return COUNTRY_GROUPS[fCountry] || [fCountry];
-}
-var fType = "all", fGenreIdx = -1, fCountry = "", fYear = "";
-var filterBusy = false, filterLocalMode = false, filterShown = 0;
-var filterSeen = {};     /* keyOf -> 1, dedupes titles across discover pages */
-var filterPaging = null; /* {movie:{next,total}, tv:{next,total}} while live paging */
-
-function activeGenre(){ return fGenreIdx >= 0 ? FILTER_GENRES[fGenreIdx] : null; }
-function filtersActive(){ return fType !== "all" || fGenreIdx >= 0 || !!fCountry || !!fYear; }
-function filterTitleText(){
-  var parts = [];
-  var g = activeGenre(); if (g) parts.push(genreLabel(g));
-  if (fCountry) parts.push(LANG === "my" ? countryLabel(fCountry) : (COUNTRY_LABELS[fCountry] || fCountry));
-  parts.push(fType === "movie" ? t("typeMovie") : fType === "tv" ? t("typeTV") : t("typeAll"));
-  if (fYear) parts.push(fYear);
-  return parts.join(" · ");
-}
-function buildGenreOptions(){
-  var sel = $("genreSel");
-  sel.innerHTML = '<option value="">' + t("allGenres") + '</option>';
-  FILTER_GENRES.forEach(function(g, i){
-    if (fType === "movie" && g.movie == null) return;
-    if (fType === "tv" && g.tv == null) return;
-    var o = document.createElement("option");
-    o.value = String(i); o.textContent = genreLabel(g);
-    sel.appendChild(o);
-  });
-  sel.value = fGenreIdx >= 0 ? String(fGenreIdx) : "";
-  if (sel.value === "" && fGenreIdx >= 0) fGenreIdx = -1; /* genre not offered for this type */
-}
-function buildYearOptions(){
-  var sel = $("yearSel");
-  var now = new Date().getFullYear();
-  for (var y = now + 1; y >= 1970; y--){
-    var o = document.createElement("option");
-    o.value = String(y); o.textContent = String(y);
-    sel.appendChild(o);
-  }
-}

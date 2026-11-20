@@ -331,6 +331,81 @@
   .ep-rich .ep-meta{font-size:11.5px;color:var(--faint);margin-top:5px}
   @media(max-width:560px){.ep-rich .ep-thumb{width:108px}.ep-rich .ep-num{font-size:16px;min-width:20px;padding-top:12px}.ep-rich{gap:9px;padding:8px}}
 
+  /* ---------- Profiles & Kids Mode ---------- */
+  .profile-switcher{position:relative;flex:none}
+  .profile-btn{display:flex;align-items:center;gap:7px;background:none;border:0;cursor:pointer;padding:2px;color:#fff;font-family:inherit}
+  .profile-btn .avatar{transition:transform .2s}
+  .profile-btn:hover .avatar{transform:scale(1.08)}
+  .kids-pill{display:inline-flex;align-items:center;background:linear-gradient(90deg,#ffb020,#ff7847);color:#1a1000;
+    font-size:10.5px;font-weight:900;letter-spacing:.08em;padding:3px 8px;border-radius:999px;line-height:1.2}
+  .kids-pill-sm{display:inline-flex;align-items:center;background:linear-gradient(90deg,#ffb020,#ff7847);color:#1a1000;
+    font-size:9.5px;font-weight:900;letter-spacing:.07em;padding:2px 7px;border-radius:999px;line-height:1.25}
+  .profile-menu{position:absolute;right:0;top:calc(100% + 10px);min-width:238px;background:#141414;border:1px solid var(--line);
+    border-radius:8px;box-shadow:0 18px 44px rgba(0,0,0,.75);padding:6px;z-index:70}
+  .profile-menu-item{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:#e5e5e5;cursor:pointer;
+    font-family:inherit;font-size:14px;font-weight:600;padding:8px 9px;border-radius:6px;text-align:left}
+  .profile-menu-item:hover{background:rgba(255,255,255,.09);color:#fff}
+  .avatar-sm{width:28px;height:28px;font-size:13px;border-radius:4px}
+  .pm-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profile-menu-foot{border-top:1px solid var(--line);margin-top:5px;padding-top:5px}
+  .profile-menu-foot button{display:flex;align-items:center;gap:9px;width:100%;background:none;border:0;color:#cfcfcf;cursor:pointer;
+    font-family:inherit;font-size:13.5px;font-weight:600;padding:8px 9px;border-radius:6px;text-align:left}
+  .profile-menu-foot button:hover{background:rgba(255,255,255,.09);color:#fff}
+  body.kids-mode .logo{color:#ffb020}
+  body.kids-mode .nav.scrolled{background:#171106}
+
+  .profile-gate{position:fixed;inset:0;z-index:120;background:#0a0a0e;display:flex;align-items:flex-start;justify-content:center;
+    overflow-y:auto;padding:9vh 16px 48px}
+  .gate-close{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:999px;border:1px solid var(--line);
+    background:rgba(255,255,255,.06);color:#fff;cursor:pointer;display:grid;place-items:center}
+  .gate-close:hover{background:rgba(255,255,255,.14)}
+  .gate-inner{width:100%;max-width:760px;text-align:center}
+  .gate-title{font-size:clamp(28px,5.4vw,46px);font-weight:700;margin:0 0 34px;letter-spacing:.01em}
+  .gate-tiles{display:flex;flex-wrap:wrap;gap:clamp(14px,3.4vw,30px);justify-content:center}
+  .gate-tile{background:none;border:0;cursor:pointer;font-family:inherit;color:inherit;display:flex;flex-direction:column;
+    align-items:center;gap:9px;width:118px;padding:0}
+  .gate-avatar{position:relative;width:104px;height:104px;border-radius:8px;display:grid;place-items:center;
+    font-size:42px;font-weight:800;color:#fff;transition:transform .22s cubic-bezier(.2,.7,.3,1.2),box-shadow .22s}
+  .gate-tile:hover .gate-avatar,.gate-tile:focus-visible .gate-avatar{transform:scale(1.06);box-shadow:0 0 0 2.5px #fff,0 16px 34px rgba(0,0,0,.6)}
+  .gate-tile:focus-visible{outline:none}
+  .gate-name{font-size:15.5px;color:#c9c9c9;font-weight:600;line-height:1.25;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gate-tile:hover .gate-name{color:#fff}
+  .gate-edit{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);border-radius:8px;color:#fff}
+  .gate-avatar-add{background:transparent;border:2px dashed rgba(255,255,255,.4);color:#bdbdbd}
+  .gate-tile:hover .gate-avatar-add{border-color:#fff;color:#fff;box-shadow:none}
+  .gate-actions{margin-top:38px;display:flex;justify-content:center;gap:12px}
+  .gate-manage-btn{background:none;border:1px solid rgba(255,255,255,.45);color:#e5e5e5;font-family:inherit;font-size:14.5px;
+    font-weight:600;padding:10px 26px;cursor:pointer;letter-spacing:.04em;transition:background .2s,color .2s,border-color .2s}
+  .gate-manage-btn:hover{background:#fff;color:#000;border-color:#fff}
+  .profile-edit{max-width:430px;margin:0 auto;text-align:left;background:#141414;border:1px solid var(--line);
+    border-radius:10px;padding:24px 22px 20px}
+  .profile-edit h2{font-size:20px;margin:0 0 18px;font-weight:700}
+  .pe-label{display:block;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .profile-edit input[type="text"]{width:100%;background:#0c0c0c;border:1px solid var(--line);border-radius:6px;color:#fff;
+    font-family:inherit;font-size:16px;padding:11px 12px;outline:none}
+  .profile-edit input[type="text"]:focus{border-color:#fff}
+  .pe-kids{display:flex;align-items:center;gap:14px;margin:20px 0 4px;cursor:pointer}
+  .pe-kids .pe-kids-txt{flex:1;font-size:14.5px;font-weight:600;color:#eee}
+  .pe-kids small{display:block;font-size:12.5px;color:var(--faint);font-weight:400;margin-top:3px;line-height:1.45}
+  .switch{position:relative;width:46px;height:26px;flex:none;display:inline-block}
+  .switch input{opacity:0;width:0;height:0;position:absolute;margin:0}
+  .switch .track{position:absolute;inset:0;background:#454545;border-radius:999px;transition:background .2s;cursor:pointer}
+  .switch .track:before{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s}
+  .switch input:checked + .track{background:var(--red)}
+  .switch input:checked + .track:before{transform:translateX(20px)}
+  .switch input:focus-visible + .track{outline:2px solid #fff;outline-offset:2px}
+  .pe-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;align-items:center}
+  .pe-actions .btn{padding:9px 20px;font-size:14.5px}
+  .pe-delete{margin-left:auto;background:none;border:0;color:#ff6b6b;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 4px}
+  .pe-delete:hover{color:#ff8585;text-decoration:underline}
+  @media (max-width:560px){
+    .gate-avatar{width:84px;height:84px;font-size:34px}
+    .gate-tile{width:96px}
+    .profile-btn{position:relative}
+    .kids-pill{position:absolute;top:-7px;left:-6px;right:auto;font-size:8.5px;padding:2px 5px;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+    .profile-btn .lucide-chevron-down{display:none}
+  }
+
   footer{border-top:1px solid #222;margin-top:34px;padding:30px clamp(16px,4vw,56px) 44px;color:var(--faint);font-size:12.5px;line-height:1.8}
   footer a{color:#9a9a9a}
   .statusbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px clamp(16px,4vw,56px) 0;font-size:12.5px;color:var(--faint)}
@@ -385,7 +460,19 @@
     <button class="icon-btn" id="bellBtn" aria-label="Notifications" title="Notifications" data-i18n-aria="notifications" data-i18n-title="notifications">
       <i data-lucide="bell" style="width:20px;height:20px"></i>
     </button>
-    <div class="avatar" title="Profile" data-i18n-title="profile">A</div>
+    <div class="profile-switcher">
+      <button class="profile-btn" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Profile" data-i18n-title="profile">
+        <span class="avatar" id="profileAvatar">A</span>
+        <span class="kids-pill" id="kidsBadge" style="display:none">KIDS</span>
+        <i data-lucide="chevron-down" style="width:15px;height:15px"></i>
+      </button>
+      <div class="profile-menu" id="profileMenu" style="display:none">
+        <div id="profileMenuList"></div>
+        <div class="profile-menu-foot">
+          <button type="button" id="manageProfilesBtn"><i data-lucide="settings-2" style="width:15px;height:15px"></i> <span data-i18n="manageProfiles">Manage Profiles</span></button>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -499,6 +586,42 @@
     <div class="scroller-wrap">
       <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
       <div class="scroller" id="row-top10" style="gap:14px"></div>
+      <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
+  <section class="row" data-kids-row style="display:none">
+    <div class="row-head"><h2 data-i18n="kidsMovies">Kids Movies</h2><span class="live-note" data-i18n="kidsRowNote">Animation &amp; Family</span></div>
+    <div class="scroller-wrap">
+      <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
+      <div class="scroller" id="row-kids-movies"></div>
+      <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
+  <section class="row" data-kids-row style="display:none">
+    <div class="row-head"><h2 data-i18n="kidsTV">Kids TV Shows</h2><span class="live-note" data-i18n="kidsRowNote">Animation &amp; Family</span></div>
+    <div class="scroller-wrap">
+      <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
+      <div class="scroller" id="row-kids-tv"></div>
+      <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
+  <section class="row" data-kids-row style="display:none">
+    <div class="row-head"><h2 data-i18n="animationRow">Animation</h2><span class="live-note" data-i18n="kidsRowNote">Animation &amp; Family</span></div>
+    <div class="scroller-wrap">
+      <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
+      <div class="scroller" id="row-kids-anim"></div>
+      <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
+  <section class="row" data-kids-row style="display:none">
+    <div class="row-head"><h2 data-i18n="familyRow">Family Movies &amp; Shows</h2><span class="live-note" data-i18n="kidsRowNote">Animation &amp; Family</span></div>
+    <div class="scroller-wrap">
+      <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
+      <div class="scroller" id="row-kids-family"></div>
       <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
     </div>
   </section>
@@ -658,6 +781,34 @@
       <button class="hp-btn hp-btn-play" id="hpPlay" type="button"><i data-lucide="play" style="width:16px;height:16px"></i> <span data-i18n="play">Play</span></button>
       <button class="hp-btn hp-btn-list" id="hpList" type="button"><i data-lucide="plus" style="width:15px;height:15px"></i> <span data-i18n="myList">My List</span></button>
       <button class="hp-btn hp-btn-info" id="hpInfo" type="button" aria-label="More Info"><i data-lucide="chevron-down" style="width:18px;height:18px"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PROFILE GATE ===================== -->
+<div class="profile-gate" id="profileGate" style="display:none">
+  <button class="gate-close" id="gateClose" type="button" style="display:none" aria-label="Close" data-i18n-aria="closeAria"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+  <div class="gate-inner">
+    <h1 class="gate-title" id="gateTitle">Who's watching?</h1>
+    <div class="gate-tiles" id="gateTiles"></div>
+    <div class="gate-actions" id="gateActions">
+      <button class="gate-manage-btn" id="gateManageBtn" type="button" data-i18n="manageProfiles">Manage Profiles</button>
+      <button class="gate-manage-btn" id="gateDoneBtn" type="button" style="display:none" data-i18n="done">Done</button>
+    </div>
+    <div class="profile-edit" id="profileEditForm" style="display:none">
+      <h2 id="profileEditTitle">Edit Profile</h2>
+      <label class="pe-label" for="profileNameInput" data-i18n="profileName">Name</label>
+      <input id="profileNameInput" type="text" maxlength="20" autocomplete="off" />
+      <label class="pe-kids" for="profileKidsToggle">
+        <span class="pe-kids-txt"><span data-i18n="kidsProfileLabel">Kids profile</span>
+        <small data-i18n="kidsProfileHint">Only kid-friendly titles — Animation &amp; Family genres</small></span>
+        <span class="switch"><input type="checkbox" id="profileKidsToggle" /><span class="track"></span></span>
+      </label>
+      <div class="pe-actions">
+        <button class="btn btn-red" id="profileSaveBtn" type="button" data-i18n="saveProfile">Save</button>
+        <button class="btn btn-ghost" id="profileCancelBtn" type="button" data-i18n="cancel">Cancel</button>
+        <button class="pe-delete" id="profileDeleteBtn" type="button" style="display:none" data-i18n="deleteProfile">Delete Profile</button>
+      </div>
     </div>
   </div>
 </div>
