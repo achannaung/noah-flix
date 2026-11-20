@@ -994,3 +994,88 @@ renderPeopleRow(FALLBACK_PEOPLE);
 loadPeople();
 loadHome();
 initProfileUI();
+
+/* ---------------- PWA: service worker + Install App ----------------
+   Service worker: registered once the page has loaded. manifest.json
+   and sw.js are separate files in the repo; in environments without
+   them (the Muse preview, a static mirror) registration simply
+   rejects and is swallowed by the catch, so the page never errors.
+   Install: the beforeinstallprompt event is captured and stashed —
+   the header button and the profile-menu item only appear while an
+   install is actually available, and clicking one fires the native
+   prompt. iOS Safari never fires that event, so there the same
+   buttons open the Share -> "Add to Home Screen" guidance card
+   instead. Once the app runs standalone (or gets installed) every
+   install affordance hides itself. */
+var deferredInstallPrompt = null;
+function isStandaloneMode(){
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+    if (window.matchMedia && window.matchMedia("(display-mode: fullscreen)").matches) return true;
+  } catch (e) {}
+  return window.navigator.standalone === true;
+}
+function isIOSDevice(){
+  var ua = window.navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/i.test(ua)) return true;
+  /* iPadOS reports a desktop Mac UA — touch points give it away */
+  return window.navigator.platform === "MacIntel" && (window.navigator.maxTouchPoints || 0) > 1;
+}
+function refreshInstallUI(){
+  var show = !isStandaloneMode() && (!!deferredInstallPrompt || isIOSDevice());
+  ["installBtn", "installMenuBtn"].forEach(function(id){
+    var b = $(id); if (b) b.hidden = !show;
+  });
+  if (isStandaloneMode()) hideIOSInstallHint();
+}
+function showIOSInstallHint(){
+  var h = $("iosInstallHint"); if (h) h.hidden = false;
+}
+function hideIOSInstallHint(){
+  var h = $("iosInstallHint"); if (h) h.hidden = true;
+}
+function handleInstallClick(){
+  hideProfileMenu();
+  if (deferredInstallPrompt) {
+    var promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    refreshInstallUI();
+    try {
+      promptEvent.prompt();
+      if (promptEvent.userChoice && promptEvent.userChoice.then)
+        promptEvent.userChoice.then(function(){ refreshInstallUI(); }, function(){ refreshInstallUI(); });
+    } catch (e) { refreshInstallUI(); }
+    return;
+  }
+  if (isIOSDevice()) showIOSInstallHint();
+}
+window.addEventListener("beforeinstallprompt", function(e){
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  refreshInstallUI();
+});
+window.addEventListener("appinstalled", function(){
+  deferredInstallPrompt = null;
+  refreshInstallUI();
+  hideIOSInstallHint();
+});
+(function initPWA(){
+  var b = $("installBtn"); if (b) b.addEventListener("click", handleInstallClick);
+  var mb = $("installMenuBtn"); if (mb) mb.addEventListener("click", handleInstallClick);
+  var c = $("iosHintClose"); if (c) c.addEventListener("click", hideIOSInstallHint);
+  var g = $("iosHintGotIt"); if (g) g.addEventListener("click", hideIOSInstallHint);
+  var hint = $("iosInstallHint");
+  if (hint) hint.addEventListener("click", function(e){ if (e.target === hint) hideIOSInstallHint(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape") hideIOSInstallHint();
+  });
+  refreshInstallUI();
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function(){
+      try {
+        var reg = navigator.serviceWorker.register("sw.js");
+        if (reg && reg.catch) reg.catch(function(){});
+      } catch (e) {}
+    });
+  }
+})();

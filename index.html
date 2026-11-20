@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark" />
 <link rel="icon" href="data:," />
+<!-- PWA: manifest + theme + iOS standalone hooks. manifest.json, sw.js
+     and icon.svg live alongside this file in the repo (added separately);
+     they are referenced here, not built into this artifact. -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#000000" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Noah-Flix" />
+<link rel="apple-touch-icon" href="icon.svg" />
 <title>Noah-Flix — Stream Movies &amp; TV Shows</title>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
@@ -492,6 +502,61 @@
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.01ms !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
   }
+
+  /* ---------- PWA: safe-area header + Install App ---------- */
+  /* The fixed header pads itself by the device safe-area insets, so in
+     standalone mode (apple-mobile-web-app-status-bar-style:
+     black-translucent) the bar clears the notch / status bar instead
+     of sliding under it. In a normal browser tab the insets are 0 and
+     nothing changes. The blocks below the header shift by the same
+     top inset so their spacing from the taller header stays exact. */
+  .nav{padding-top:calc(14px + env(safe-area-inset-top,0px));
+    padding-left:calc(clamp(16px,4vw,56px) + env(safe-area-inset-left,0px));
+    padding-right:calc(clamp(16px,4vw,56px) + env(safe-area-inset-right,0px))}
+  @media (max-width:560px){
+    .nav{padding-top:calc(12px + env(safe-area-inset-top,0px));
+      padding-left:calc(14px + env(safe-area-inset-left,0px));
+      padding-right:calc(14px + env(safe-area-inset-right,0px))}
+  }
+  .filterbar{padding-top:calc(84px + env(safe-area-inset-top,0px))}
+  #altView{padding-top:calc(96px + env(safe-area-inset-top,0px)) !important}
+  .profile-gate{padding-top:calc(9vh + env(safe-area-inset-top,0px))}
+  @media (display-mode:standalone){
+    .overlay{padding-top:calc(28px + env(safe-area-inset-top,0px))}
+  }
+  @media (display-mode:fullscreen){
+    .overlay{padding-top:calc(28px + env(safe-area-inset-top,0px))}
+  }
+
+  .install-nav-btn{display:inline-flex;align-items:center;gap:7px;background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.45);color:#fff;font-family:inherit;font-size:13px;font-weight:700;
+    padding:8px 13px;border-radius:999px;cursor:pointer;flex:none;transition:background .2s,border-color .2s}
+  .install-nav-btn:hover{background:rgba(255,255,255,.14);border-color:#fff}
+  .install-nav-btn:active{transform:scale(.96)}
+  .install-nav-btn[hidden]{display:none}
+  .profile-menu-foot button[hidden]{display:none}
+  @media (max-width:760px){
+    .install-nav-btn{padding:8px 10px}
+    .install-nav-btn .install-nav-label{display:none}
+  }
+  @media (max-width:560px){ .install-nav-btn{padding:7px 8px} }
+
+  .ios-install-hint{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.66);
+    display:flex;align-items:flex-end;justify-content:center;
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .ios-install-hint[hidden]{display:none}
+  .ios-hint-card{position:relative;width:100%;max-width:430px;background:#181818;border:1px solid var(--line);
+    border-radius:14px;padding:24px 22px 20px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.8);
+    animation:pop .25s ease}
+  .ios-hint-close{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:999px;border:0;
+    background:rgba(255,255,255,.08);color:#fff;cursor:pointer;display:grid;place-items:center}
+  .ios-hint-close:hover{background:rgba(255,255,255,.16)}
+  .ios-hint-icon{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;background:var(--red);
+    display:grid;place-items:center;color:#fff}
+  .ios-hint-card h3{font-size:19px;font-weight:800;margin:0 0 9px}
+  .ios-hint-card p{font-size:14.5px;line-height:1.65;color:#d8d8d8;margin:0 0 18px}
+  .ios-hint-ok{padding:10px 30px;font-size:14.5px}
+  @media (min-width:761px){ .ios-install-hint{align-items:center} }
 </style>
 </head>
 <body>
@@ -519,6 +584,10 @@
     <button class="icon-btn" id="bellBtn" aria-label="Notifications" title="Notifications" data-i18n-aria="notifications" data-i18n-title="notifications">
       <i data-lucide="bell" style="width:20px;height:20px"></i>
     </button>
+    <button class="install-nav-btn" id="installBtn" type="button" hidden aria-label="Install App" title="Install App" data-i18n-aria="installApp" data-i18n-title="installApp">
+      <i data-lucide="download" style="width:16px;height:16px;flex:none"></i>
+      <span class="install-nav-label" data-i18n="installApp">Install App</span>
+    </button>
     <div class="profile-switcher">
       <button class="profile-btn" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Profile" data-i18n-title="profile">
         <span class="avatar" id="profileAvatar">A</span>
@@ -528,6 +597,7 @@
       <div class="profile-menu" id="profileMenu" style="display:none">
         <div id="profileMenuList"></div>
         <div class="profile-menu-foot">
+          <button type="button" id="installMenuBtn" hidden><i data-lucide="download" style="width:15px;height:15px"></i> <span data-i18n="installApp">Install App</span></button>
           <button type="button" id="manageProfilesBtn"><i data-lucide="settings-2" style="width:15px;height:15px"></i> <span data-i18n="manageProfiles">Manage Profiles</span></button>
         </div>
       </div>
@@ -876,6 +946,17 @@
         <button class="pe-delete" id="profileDeleteBtn" type="button" style="display:none" data-i18n="deleteProfile">Delete Profile</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- iOS install guidance (Safari has no beforeinstallprompt) -->
+<div class="ios-install-hint" id="iosInstallHint" hidden role="dialog" aria-label="Install Noah-Flix" data-i18n-aria="iosInstallTitle">
+  <div class="ios-hint-card">
+    <button class="ios-hint-close" id="iosHintClose" type="button" aria-label="Close" data-i18n-aria="closeAria"><i data-lucide="x" style="width:17px;height:17px"></i></button>
+    <div class="ios-hint-icon"><i data-lucide="share" style="width:23px;height:23px"></i></div>
+    <h3 data-i18n="iosInstallTitle">Install Noah-Flix</h3>
+    <p data-i18n="iosInstallSteps">Tap the Share button in Safari, then choose “Add to Home Screen” to install Noah-Flix as an app.</p>
+    <button class="btn btn-red ios-hint-ok" id="iosHintGotIt" type="button" data-i18n="installGotIt">Got it</button>
   </div>
 </div>
 
