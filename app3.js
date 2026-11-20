@@ -262,6 +262,180 @@ function doSearch(q){
     });
 }
 
+/* ---------------- Surprise Me ----------------
+   Picks a random title from the current catalog pool — everything
+   already in the store (live rows, search results, My List, history)
+   plus the built-in snapshot — preferring titles rated 6.5 or above
+   when any are available. On a Kids profile the pool is filtered to
+   kids-safe titles first (Animation / Family), same as every other
+   surface. The pick opens straight in the detail modal, and the
+   modal's own Surprise button re-rolls, excluding the title that is
+   currently open so a re-roll lands on something different. */
+function catalogPool(){
+  var seen = {}, pool = [];
+  function add(it){
+    if (!it || !it.id) return;
+    var k = keyOf(it);
+    if (seen[k]) return;
+    seen[k] = 1; pool.push(it);
+  }
+  snapshotPool().forEach(add);
+  Object.keys(store).forEach(function(k){ add(store[k]); });
+  return pool;
+}
+function surprisePool(excludeKey){
+  var pool = kidsFilter(catalogPool()).filter(function(it){
+    return it && it.poster_path && keyOf(it) !== excludeKey;
+  });
+  var rated = pool.filter(function(it){ return (it.vote_average || 0) >= 6.5; });
+  return rated.length ? rated : pool;
+}
+function pickSurprise(excludeKey){
+  var pool = surprisePool(excludeKey);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function openSurprise(){
+  var exclude = currentItem ? keyOf(currentItem) : null;
+  var it = pickSurprise(exclude) || pickSurprise(null);
+  if (!it) return;
+  hideSuggest();
+  if (typeof hideHoverPreview === "function") hideHoverPreview(true);
+  openModal(it, false);
+  var ov = $("overlay"); if (ov) ov.scrollTop = 0;
+}
+
+/* ---------------- Search suggestions ----------------
+   Typing in the header search box (debounced ~300ms) opens a
+   dropdown of up to 8 matches: poster thumbnail, title, year,
+   Movie/TV badge and rating. Live mode queries TMDB /search/multi
+   through fetchJSON, so the existing direct -> CORS-proxy route
+   fallback applies unchanged; when TMDB is unreachable the same
+   query is filtered over the local catalog (store + snapshot).
+   Kids profiles only ever see kids-safe suggestions. Clicking a
+   suggestion (or arrowing to it and pressing Enter) opens that
+   title's detail modal; pressing Enter with no suggestion
+   highlighted keeps the original behaviour — the full search
+   results page via the form submit. Esc closes the dropdown. */
+var suggestItems = [], suggestIndex = -1, suggestSeq = 0, suggestTimer = null;
+function hideSuggest(){
+  var dd = $("searchSuggest"); if (dd) dd.hidden = true;
+  suggestItems = []; suggestIndex = -1;
+  var inp = $("searchInput"); if (inp) inp.setAttribute("aria-expanded", "false");
+}
+function localSuggest(q){
+  var ql = q.toLowerCase();
+  return kidsFilter(catalogPool()).filter(function(it){
+    return it && it.poster_path && titleOf(it).toLowerCase().indexOf(ql) !== -1;
+  }).sort(function(a, b){
+    return (b.vote_average || 0) - (a.vote_average || 0) || (b.popularity || 0) - (a.popularity || 0);
+  });
+}
+function renderSuggest(list){
+  var dd = $("searchSuggest"); if (!dd) return;
+  suggestItems = (list || []).slice(0, 8);
+  suggestIndex = -1;
+  if (!suggestItems.length) {
+    dd.innerHTML = '<div class="suggest-empty">' + esc(t("suggestNoMatch")) + '</div>';
+  } else {
+    dd.innerHTML = suggestItems.map(function(it, i){
+      var poster = it.poster_path ? imgSrc(IMG + "w185" + it.poster_path) : "";
+      var img = poster ? '<img loading="lazy" src="' + poster + '" alt="" onerror="this.style.display=\'none\'">' : "";
+      var isTV = typeOf(it) === "tv";
+      return '<button type="button" class="suggest-item" role="option" id="suggest-' + i + '" data-suggest="' + i + '" aria-selected="false">' +
+        '<span class="suggest-poster">' + img + '</span>' +
+        '<span class="suggest-main"><span class="suggest-title">' + esc(titleOf(it)) + '</span>' +
+        '<span class="suggest-meta">' + (yearOf(it) ? '<span>' + yearOf(it) + '</span>' : "") +
+        '<span class="suggest-badge' + (isTV ? " tv" : "") + '">' + (isTV ? t("seriesBadge") : t("filmBadge")) + '</span>' +
+        (it.vote_average ? '<span class="suggest-rate"><i data-lucide="star"></i>' + Number(it.vote_average).toFixed(1) + '</span>' : "") +
+        '</span></span></button>';
+    }).join("");
+    dd.querySelectorAll("[data-suggest]").forEach(function(b){
+      b.addEventListener("mousedown", function(e){ e.preventDefault(); });
+      b.addEventListener("click", function(){
+        var it = suggestItems[Number(b.getAttribute("data-suggest"))];
+        if (it) { hideSuggest(); openModal(it, false); }
+      });
+      b.addEventListener("mouseenter", function(){ setSuggestIndex(Number(b.getAttribute("data-suggest"))); });
+    });
+  }
+  dd.hidden = false;
+  var inp = $("searchInput"); if (inp) inp.setAttribute("aria-expanded", "true");
+  icons();
+}
+function setSuggestIndex(i){
+  suggestIndex = i;
+  var dd = $("searchSuggest"); if (!dd) return;
+  dd.querySelectorAll("[data-suggest]").forEach(function(b){
+    var on = Number(b.getAttribute("data-suggest")) === i;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    if (on) b.scrollIntoView({ block: "nearest" });
+  });
+  var inp = $("searchInput");
+  if (inp) {
+    if (i >= 0) inp.setAttribute("aria-activedescendant", "suggest-" + i);
+    else inp.removeAttribute("aria-activedescendant");
+  }
+}
+function fetchSuggest(q){
+  var seq = ++suggestSeq;
+  fetchJSON("/search/multi", "&query=" + encodeURIComponent(q) + "&include_adult=false")
+    .then(function(d){
+      if (seq !== suggestSeq) return;
+      var list = kidsFilter((d.results || []).filter(function(x){
+        return (x.media_type === "movie" || x.media_type === "tv") && x.poster_path;
+      }));
+      renderSuggest(list.length ? list : localSuggest(q));
+    })
+    .catch(function(){
+      if (seq !== suggestSeq) return;
+      renderSuggest(localSuggest(q));
+    });
+}
+function scheduleSuggest(){
+  var inp = $("searchInput"); if (!inp) return;
+  var q = inp.value.trim();
+  if (suggestTimer) clearTimeout(suggestTimer);
+  if (q.length < 2) { suggestSeq++; hideSuggest(); return; }
+  suggestTimer = setTimeout(function(){ fetchSuggest(q); }, 300);
+}
+(function initSuggest(){
+  var inp = $("searchInput"); if (!inp) return;
+  inp.addEventListener("input", scheduleSuggest);
+  inp.addEventListener("focus", function(){
+    if (inp.value.trim().length >= 2 && !suggestItems.length) scheduleSuggest();
+  });
+  inp.addEventListener("keydown", function(e){
+    var dd = $("searchSuggest");
+    var open = dd && !dd.hidden && suggestItems.length;
+    if (e.key === "ArrowDown" && open) {
+      e.preventDefault();
+      setSuggestIndex(Math.min(suggestIndex + 1, suggestItems.length - 1));
+    } else if (e.key === "ArrowUp" && open) {
+      e.preventDefault();
+      setSuggestIndex(Math.max(suggestIndex - 1, 0));
+    } else if (e.key === "Enter" && open && suggestIndex >= 0 && suggestItems[suggestIndex]) {
+      e.preventDefault();
+      var it = suggestItems[suggestIndex];
+      hideSuggest();
+      openModal(it, false);
+    } else if (e.key === "Escape" && dd && !dd.hidden) {
+      e.preventDefault(); e.stopPropagation();
+      hideSuggest();
+    }
+  });
+  document.addEventListener("click", function(e){
+    var form = $("searchForm");
+    if (form && !form.contains(e.target)) hideSuggest();
+  });
+})();
+(function initSurprise(){
+  var hb = $("surpriseBtn"); if (hb) hb.addEventListener("click", openSurprise);
+  var hero = $("heroSurprise"); if (hero) hero.addEventListener("click", openSurprise);
+  var mb = $("modalSurprise"); if (mb) mb.addEventListener("click", openSurprise);
+})();
+
 /* ---------------- Filters: type / genre / country / year ----------------
    Live mode queries TMDB's /discover endpoints (with_genres +
    with_origin_country + release-year params, popularity order, paged
@@ -528,13 +702,7 @@ $("yearSel").addEventListener("change", function(){ fYear = this.value; applyFil
 $("clearFilters").addEventListener("click", function(){ resetFilters(); applyFilters(); });
 $("loadMoreBtn").addEventListener("click", function(){ if (!filterBusy && !filterLocalMode) loadFilterPage(); });
 $("altClose").addEventListener("click", showBrowse);
-$("searchForm").addEventListener("submit", function(e){ e.preventDefault(); doSearch($("searchInput").value); });
-var searchDebounce = null;
-$("searchInput").addEventListener("input", function(){
-  clearTimeout(searchDebounce);
-  var v = this.value;
-  searchDebounce = setTimeout(function(){ if (v.trim().length >= 3) doSearch(v); }, 550);
-});
+$("searchForm").addEventListener("submit", function(e){ e.preventDefault(); hideSuggest(); doSearch($("searchInput").value); });
 $("clearHistory").addEventListener("click", clearHistory);
 $("retryLive").addEventListener("click", retryLive);
 $("starSearchForm").addEventListener("submit", function(e){ e.preventDefault(); doPersonSearch($("starSearchInput").value); });

@@ -406,6 +406,53 @@
     .profile-btn .lucide-chevron-down{display:none}
   }
 
+  /* ---------- Surprise Me ---------- */
+  .surprise-nav-btn{display:inline-flex;align-items:center;gap:7px;background:var(--red);border:0;color:#fff;
+    font-family:inherit;font-size:13px;font-weight:800;padding:8px 14px;border-radius:999px;cursor:pointer;flex:none;
+    box-shadow:0 4px 16px rgba(229,9,20,.35);transition:background .2s,transform .15s}
+  .surprise-nav-btn:hover{background:var(--red-dark)}
+  .surprise-nav-btn:active{transform:scale(.96)}
+  .surprise-nav-btn .dice{font-size:15px;line-height:1}
+  .btn-surprise{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35)}
+  .btn-surprise:hover{background:rgba(255,255,255,.24)}
+  .btn-surprise .dice{font-size:18px;line-height:1}
+  @media (max-width:760px){
+    .surprise-nav-btn{padding:8px 10px}
+    .surprise-nav-btn .surprise-nav-label{display:none}
+  }
+  @media (max-width:560px){
+    .surprise-nav-btn{padding:7px 8px}
+    .nav-right{flex:1;min-width:0;justify-content:flex-end}
+    .searchbox{flex:1 1 auto;min-width:0}
+    .searchbox input{width:100%;min-width:34px}
+  }
+
+  /* ---------- Search suggestions ---------- */
+  .searchbox{position:relative}
+  .search-suggest{position:absolute;top:calc(100% + 10px);right:0;width:min(384px,calc(100vw - 24px));
+    background:#141414;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;
+    box-shadow:0 22px 50px rgba(0,0,0,.85);z-index:80;padding:5px}
+  .search-suggest[hidden]{display:none}
+  .suggest-item{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;color:#fff;
+    font-family:inherit;text-align:left;padding:7px 8px;border-radius:7px;cursor:pointer}
+  .suggest-item:hover,.suggest-item.active{background:rgba(255,255,255,.1)}
+  .suggest-poster{flex:none;width:38px;height:56px;border-radius:4px;overflow:hidden;background:var(--panel3);display:block}
+  .suggest-poster img{width:100%;height:100%;object-fit:cover;display:block}
+  .suggest-main{flex:1;min-width:0;display:block}
+  .suggest-title{display:block;font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .suggest-meta{display:flex;flex-wrap:wrap;gap:5px 9px;align-items:center;font-size:11.5px;color:var(--muted);margin-top:3px}
+  .suggest-badge{background:var(--red);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:1.5px 6px;border-radius:3px}
+  .suggest-badge.tv{background:#2b6cb0}
+  .suggest-rate{color:#f5c518;font-weight:700;display:inline-flex;align-items:center;gap:3px}
+  .suggest-rate svg{width:11px;height:11px}
+  .suggest-empty{padding:14px 12px;font-size:13px;color:var(--muted);line-height:1.5}
+  @media (max-width:760px){
+    /* The phone header shrinks the search box, so anchoring the
+       dropdown to it would push it off the left edge — pin it to
+       the viewport under the fixed nav instead. */
+    .search-suggest{position:fixed;top:58px;right:12px;left:12px;width:auto}
+  }
+
   footer{border-top:1px solid #222;margin-top:34px;padding:30px clamp(16px,4vw,56px) 44px;color:var(--faint);font-size:12.5px;line-height:1.8}
   footer a{color:#9a9a9a}
   .statusbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px clamp(16px,4vw,56px) 0;font-size:12.5px;color:var(--faint)}
@@ -449,9 +496,11 @@
     <button data-nav="mylist" data-i18n="navMyList">My List</button>
   </nav>
   <div class="nav-right">
+    <button class="surprise-nav-btn" id="surpriseBtn" type="button" data-i18n-aria="surpriseMe" aria-label="Surprise Me" title="Surprise Me"><span class="dice" aria-hidden="true">🎲</span> <span class="surprise-nav-label" data-i18n="surpriseMe">Surprise Me</span></button>
     <form class="searchbox" id="searchForm" role="search">
       <i data-lucide="search" style="width:17px;height:17px;flex:none"></i>
-      <input id="searchInput" type="search" placeholder="Titles, people, genres" data-i18n-ph="searchPlaceholder" data-i18n-aria="searchAria" aria-label="Search titles" autocomplete="off" />
+      <input id="searchInput" type="search" placeholder="Titles, people, genres" data-i18n-ph="searchPlaceholder" data-i18n-aria="searchAria" aria-label="Search titles" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="searchSuggest" aria-autocomplete="list" />
+      <div class="search-suggest" id="searchSuggest" role="listbox" aria-label="Search suggestions" hidden></div>
     </form>
     <div class="lang-toggle" role="group" aria-label="Language">
       <button type="button" id="langEn" class="on">EN</button>
@@ -531,6 +580,7 @@
     <div style="display:flex;flex-wrap:wrap;gap:10px">
       <button class="btn btn-play" id="heroPlay"><i data-lucide="play" style="width:24px;height:24px"></i> <span data-i18n="play">Play</span></button>
       <button class="btn btn-ghost" id="heroInfo"><i data-lucide="info" style="width:22px;height:22px"></i> <span data-i18n="moreInfo">More Info</span></button>
+      <button class="btn btn-surprise" id="heroSurprise" type="button"><span class="dice" aria-hidden="true">🎲</span> <span data-i18n="surpriseMe">Surprise Me</span></button>
       <button class="btn btn-ghost" id="heroList"><i data-lucide="plus" style="width:22px;height:22px"></i> My List</button>
     </div>
   </div>
@@ -722,6 +772,9 @@
           </button>
           <button class="btn btn-ghost" id="modalList" style="padding:9px 18px;font-size:15.5px">
             <i data-lucide="plus" style="width:19px;height:19px"></i> My List
+          </button>
+          <button class="btn btn-surprise" id="modalSurprise" type="button" style="padding:9px 18px;font-size:15.5px">
+            <span class="dice" aria-hidden="true">🎲</span> <span data-i18n="surpriseAgain">Another Surprise</span>
           </button>
         </div>
         <a class="open-tab" id="embedExternal" href="#" target="_blank" rel="noopener"><i data-lucide="external-link" style="width:14px;height:14px"></i> <span data-i18n="noteLink">Open player in a new tab</span></a>
