@@ -267,6 +267,70 @@
   .ep-note{font-size:13px;color:var(--faint);padding:4px 2px}
   @media (max-width:560px){ .src-next{margin-left:0} }
 
+  /* ---------- Top 10 Row ---------- */
+  .top10-item{flex:0 0 auto;display:flex;align-items:flex-end;cursor:pointer;background:none;border:0;padding:0;font-family:inherit;color:inherit;text-align:left}
+  .top10-num{font-size:118px;line-height:.78;font-weight:900;letter-spacing:-.08em;color:transparent;-webkit-text-stroke:3.5px #6e6e6e;margin-right:-14px;z-index:1;user-select:none;font-family:Arial Black,Helvetica,sans-serif}
+  @media(min-width:900px){.top10-num{font-size:148px}}
+  .top10-item .poster{width:132px}
+  @media(min-width:900px){.top10-item .poster{width:158px}}
+  .top10-item:hover .poster{transform:scale(1.05);box-shadow:0 14px 34px rgba(0,0,0,.75)}
+  .top10-item:focus-visible{outline:2px solid #fff;outline-offset:3px;border-radius:6px}
+
+  /* ---------- Hover Preview (desktop) ---------- */
+  .hover-preview{position:fixed;z-index:85;width:342px;max-width:calc(100vw - 16px);background:#181818;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.08);opacity:0;transform:scale(.92) translateY(6px);transform-origin:center bottom;pointer-events:none;transition:opacity .22s ease,transform .22s cubic-bezier(.2,.7,.3,1.15)}
+  .hover-preview.on{opacity:1;transform:scale(1) translateY(0);pointer-events:auto}
+  .hover-preview .hp-media{position:relative;aspect-ratio:16/9;background:#111;overflow:hidden}
+  .hover-preview .hp-media img{width:100%;height:100%;object-fit:cover;display:block}
+  .hover-preview .hp-media .hp-fade{position:absolute;inset:auto 0 0 0;height:55%;background:linear-gradient(0deg,#181818,transparent)}
+  .hover-preview .hp-title{position:absolute;left:14px;right:14px;bottom:10px;font-size:18px;font-weight:800;line-height:1.15;text-shadow:0 2px 10px rgba(0,0,0,.7);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hover-preview .hp-body{padding:12px 14px 14px}
+  .hover-preview .hp-meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12.5px;color:#ddd;margin-bottom:8px}
+  .hover-preview .hp-overview{font-size:13px;line-height:1.55;color:#d6d6d6;margin:0 0 12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .hover-preview .hp-actions{display:flex;gap:8px;align-items:center}
+  .hp-btn{display:inline-flex;align-items:center;gap:6px;border:0;cursor:pointer;font-family:inherit;font-weight:700;border-radius:999px;padding:8px 14px;font-size:13px}
+  .hp-btn-play{background:#fff;color:#000}.hp-btn-play:hover{background:rgba(255,255,255,.82)}
+  .hp-btn-list{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35)}.hp-btn-list:hover{background:rgba(255,255,255,.2)}
+  .hp-btn-info{margin-left:auto;width:34px;height:34px;padding:0;justify-content:center;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.3)}
+  @media(hover:none),(max-width:767px){.hover-preview{display:none !important}}
+
+  /* ---------- Trailer ---------- */
+  .trailer-back{position:absolute;top:14px;left:14px;z-index:7;display:none;align-items:center;gap:7px;background:rgba(0,0,0,.82);color:#fff;border:1px solid rgba(255,255,255,.35);font-family:inherit;font-size:13px;font-weight:700;padding:8px 13px;border-radius:999px;cursor:pointer}
+  .trailer-back.show{display:inline-flex}
+  .trailer-back:hover{background:#000;border-color:#fff}
+
+  /* ---------- More Like This ---------- */
+  .similar-wrap{margin-top:28px}
+  .similar-wrap h3{font-size:18px;font-weight:700;margin:0 0 12px}
+  .similar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:680px){.similar-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:420px){.similar-grid{grid-template-columns:1fr 1fr;gap:9px}}
+  .sim-card{background:#2f2f2f;border:0;border-radius:8px;overflow:hidden;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;display:flex;flex-direction:column}
+  .sim-card:hover{background:#383838}
+  .sim-card:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  .sim-card .sim-img{position:relative;aspect-ratio:16/9;background:#1a1a1a;overflow:hidden;display:block}
+  .sim-card .sim-img img{width:100%;height:100%;object-fit:cover;display:block}
+  .sim-card .sim-img .sim-rate{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.75);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:999px}
+  .sim-card .sim-body{padding:10px 11px 12px;display:block}
+  .sim-card .sim-t{font-size:13.5px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .sim-card .sim-m{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;gap:8px}
+  .sim-card .sim-o{font-size:12px;line-height:1.5;color:#c9c9c9;margin-top:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* ---------- Episode thumbnails (rich) ---------- */
+  .ep-list.rich{flex-direction:column;flex-wrap:nowrap;max-height:460px;gap:10px}
+  .ep-rich{display:flex;gap:12px;align-items:flex-start;width:100%;background:var(--panel2);border:1px solid var(--line);color:#ddd;border-radius:8px;padding:10px;font-family:inherit;cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+  .ep-rich:hover{border-color:rgba(255,255,255,.45);color:#fff}
+  .ep-rich.on{background:#3a1518;border-color:var(--red);color:#fff}
+  .ep-rich .ep-num{font-size:20px;font-weight:800;min-width:28px;text-align:center;padding-top:18px;color:#fff}
+  .ep-rich .ep-thumb{flex:none;width:148px;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#111;position:relative;display:block}
+  .ep-rich .ep-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .ep-rich .ep-thumb .ep-play{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.25);opacity:0;transition:opacity .2s}
+  .ep-rich:hover .ep-thumb .ep-play{opacity:1}
+  .ep-rich .ep-info{flex:1;min-width:0;display:block;padding-top:2px}
+  .ep-rich .ep-name{font-size:14px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .ep-rich .ep-ov{font-size:12.5px;line-height:1.55;color:#bdbdbd;margin-top:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ep-rich .ep-meta{font-size:11.5px;color:var(--faint);margin-top:5px}
+  @media(max-width:560px){.ep-rich .ep-thumb{width:108px}.ep-rich .ep-num{font-size:16px;min-width:20px;padding-top:12px}.ep-rich{gap:9px;padding:8px}}
+
   footer{border-top:1px solid #222;margin-top:34px;padding:30px clamp(16px,4vw,56px) 44px;color:var(--faint);font-size:12.5px;line-height:1.8}
   footer a{color:#9a9a9a}
   .statusbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px clamp(16px,4vw,56px) 0;font-size:12.5px;color:var(--faint)}
@@ -430,6 +494,15 @@
     </div>
   </section>
 
+  <section class="row" id="top10Row">
+    <div class="row-head"><h2 data-i18n="top10Today">Top 10 Today</h2><span class="live-note" id="top10Note" data-i18n="top10Note">TMDB · trending today</span></div>
+    <div class="scroller-wrap">
+      <button class="chev left" data-scroll="-1" aria-label="Scroll left"><i data-lucide="chevron-left"></i></button>
+      <div class="scroller" id="row-top10" style="gap:14px"></div>
+      <button class="chev right" data-scroll="1" aria-label="Scroll right"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
   <section class="row" data-row="movie">
     <div class="row-head"><h2 data-i18n="popularMovies">Popular Movies</h2><span class="live-note">TMDB · /movie/popular</span></div>
     <div class="scroller-wrap">
@@ -514,11 +587,15 @@
       <img id="modalBackdrop" alt="" />
       <div class="fade" id="modalFade"></div>
       <button class="modal-close" id="modalClose" aria-label="Close" data-i18n-aria="closeAria"><i data-lucide="x" style="width:19px;height:19px"></i></button>
+      <button class="trailer-back" id="trailerBack" type="button"><i data-lucide="arrow-left" style="width:15px;height:15px"></i> <span data-i18n="backToPlayer">Back to Player</span></button>
       <div class="modal-titlebar" id="modalTitlebar">
         <h3 id="modalTitle">Title</h3>
         <div style="display:flex;flex-wrap:wrap;gap:10px">
           <button class="btn btn-play" id="modalPlay" style="padding:9px 24px;font-size:15.5px">
             <i data-lucide="play" style="width:21px;height:21px"></i> <span data-i18n="play">Play</span>
+          </button>
+          <button class="btn btn-ghost" id="modalTrailer" style="padding:9px 18px;font-size:15.5px;display:none">
+            <i data-lucide="clapperboard" style="width:19px;height:19px"></i> <span data-i18n="trailer">Trailer</span>
           </button>
           <button class="btn btn-ghost" id="modalList" style="padding:9px 18px;font-size:15.5px">
             <i data-lucide="plus" style="width:19px;height:19px"></i> My List
@@ -563,6 +640,24 @@
         </div>
         <div class="facts" id="modalFacts"></div>
       </div>
+      <div class="similar-wrap" id="similarWrap" style="display:none">
+        <h3 data-i18n="moreLikeThis">More Like This</h3>
+        <div class="similar-grid" id="similarGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hover Preview (desktop only) -->
+<div class="hover-preview" id="hoverPreview" aria-hidden="true">
+  <div class="hp-media"><img id="hpBackdrop" alt="" /><div class="hp-fade"></div><div class="hp-title" id="hpTitle"></div></div>
+  <div class="hp-body">
+    <div class="hp-meta" id="hpMeta"></div>
+    <p class="hp-overview" id="hpOverview"></p>
+    <div class="hp-actions">
+      <button class="hp-btn hp-btn-play" id="hpPlay" type="button"><i data-lucide="play" style="width:16px;height:16px"></i> <span data-i18n="play">Play</span></button>
+      <button class="hp-btn hp-btn-list" id="hpList" type="button"><i data-lucide="plus" style="width:15px;height:15px"></i> <span data-i18n="myList">My List</span></button>
+      <button class="hp-btn hp-btn-info" id="hpInfo" type="button" aria-label="More Info"><i data-lucide="chevron-down" style="width:18px;height:18px"></i></button>
     </div>
   </div>
 </div>
@@ -576,5 +671,6 @@
 
 <script src="app1.js"></script>
 <script src="app2.js"></script>
+<script src="app3.js"></script>
 </body>
 </html>
