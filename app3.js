@@ -1,3 +1,241 @@
+function openModalRefresh(it){
+  var g = genreNames(it);
+  $("modalGenres").innerHTML = g.map(function(n){ return '<span class="chip">' + esc(n) + '</span>'; }).join("");
+  var ov = overviewOf(it);
+  if (ov) $("modalOverview").textContent = ov;
+  if (enrichedFor === keyOf(it)) return;
+  enrichedFor = keyOf(it);
+  var facts = $("modalFacts").innerHTML;
+  var extra = "";
+  if (it.runtime) extra += "<div><b>" + t("factRuntime") + ":</b> <span>" + it.runtime + t("minSuffix") + "</span></div>";
+  if (it.number_of_seasons) extra += "<div><b>" + t("factSeasons") + ":</b> <span>" + it.number_of_seasons + "</span></div>";
+  if (it.status) extra += "<div><b>" + t("factStatus") + ":</b> <span>" + esc(it.status) + "</span></div>";
+  if (extra) $("modalFacts").innerHTML = facts + extra;
+}
+function startPlayer(it){
+  var media = $("modalMedia");
+  stopPlayer();
+  var f = document.createElement("iframe");
+  f.id = "playerFrame";
+  f.src = embedUrl(it);
+  f.title = "Player — " + titleOf(it);
+  f.setAttribute("allowfullscreen", "true");
+  f.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+  f.setAttribute("referrerpolicy", "origin");
+  media.appendChild(f);
+  $("modalBackdrop").style.display = "none";
+  $("modalFade").style.display = "none";
+  $("modalTitlebar").style.display = "none";
+  recordHistory(it);
+}
+function stopPlayer(){
+  var f = $("playerFrame");
+  if (f) f.remove();
+  var tf = $("trailerFrame");
+  if (tf) tf.remove();
+  var back = $("trailerBack"); if (back) back.classList.remove("show");
+}
+
+/* ---------------- Season dropdown + episode list (TV only) ----------------
+   Seasons come from the TMDB show record (/tv/{id} -> seasons[]), and the
+   episode list from /tv/{id}/season/{n}. Picking an episode updates the
+   shared epSeason/epEpisode state, so every source's embed URL and the
+   "open player in a new tab" link follow the selection. When TMDB is
+   unreachable (offline snapshot mode), the picker falls back to a
+   Season 1..N dropdown and numbered episodes without titles. */
+var seasonData = [];   /* [{season_number, name, episode_count}] */
+var epListCount = 0;   /* episodes in the currently rendered list (for prev/next bounds) */
+var pendingLastEp = false; /* prev-season jump: select the last episode once its list loads */
+function initEpisodePicker(it){
+  var wrap = $("epWrap");
+  if (typeOf(it) !== "tv") { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  seasonData = [];
+  var sel = $("seasonSel");
+  sel.innerHTML = '<option value="1">' + t("seasonN", 1) + '</option>';
+  sel.value = "1";
+  $("epList").innerHTML = '<span class="ep-note">' + t("loadingEpisodes") + '</span>';
+  $("epCount").textContent = "";
+  function useSeasons(list){
+    if (!currentItem || currentItem.id !== it.id) return;
+    seasonData = (list || []).filter(function(s){ return s && s.season_number != null; });
+    if (!seasonData.length) seasonData = [{ season_number: 1, name: t("seasonN", 1), episode_count: null }];
+    sel.innerHTML = "";
+    seasonData.forEach(function(s){
+      var o = document.createElement("option");
+      o.value = String(s.season_number);
+      o.textContent = s.name || t("seasonN", s.season_number);
+      sel.appendChild(o);
+    });
+    var first = seasonData.filter(function(s){ return s.season_number >= 1; })[0] || seasonData[0];
+    epSeason = first.season_number; epEpisode = 1;
+    /* Resuming from Continue Watching: jump back to the saved
+       season/episode instead of S1E1, and reload a player that is
+       already open so it lands on the right episode. */
+    if (pendingResume && pendingResume.id === it.id) {
+      var want = seasonData.filter(function(s){ return s.season_number === pendingResume.season; })[0];
+      if (want) epSeason = want.season_number;
+      epEpisode = pendingResume.episode || 1;
+      pendingResume = null;
+    }
+    sel.value = String(epSeason);
+    updateSourceUI(it);
+    var pf = $("playerFrame");
+    if (pf) { pf.src = embedUrl(it); recordHistory(it); }
+    loadEpisodes(it, epSeason);
+  }
+  if (it.seasons && it.seasons.length) { useSeasons(it.seasons); return; }
+  fetchJSON("/tv/" + it.id).then(function(d){
+    useSeasons(d && d.seasons);
+  }).catch(function(){
+    var n = Math.max(1, it.number_of_seasons || 1), list = [];
+    for (var i = 1; i <= n; i++) list.push({ season_number: i, name: t("seasonN", i), episode_count: null });
+    useSeasons(list);
+  });
+}
+function seasonMeta(n){
+  for (var i = 0; i < seasonData.length; i++) if (seasonData[i].season_number === n) return seasonData[i];
+  return null;
+}
+function loadEpisodes(it, seasonNumber){
+  var list = $("epList"); if (!list) return;
+  list.innerHTML = '<span class="ep-note">' + t("loadingEpisodes") + '</span>';
+  $("epCount").textContent = "";
+  fetchJSON("/tv/" + it.id + "/season/" + seasonNumber).then(function(d){
+    if (!currentItem || currentItem.id !== it.id) return;
+    var eps = (d && d.episodes) || [];
+    if (!eps.length) throw new Error("no episodes");
+    renderEpisodes(eps.map(function(ep){
+      return { n: ep.episode_number, title: ep.name || "", still: ep.still_path || "", overview: ep.overview || "", runtime: ep.runtime || null, air_date: ep.air_date || "" };
+    }), true);
+  }).catch(function(){
+    if (!currentItem || currentItem.id !== it.id) return;
+    var meta = seasonMeta(seasonNumber);
+    var count = (meta && meta.episode_count) || 10;
+    var eps = [];
+    for (var i = 1; i <= count; i++) eps.push({ n: i, title: "" });
+    renderEpisodes(eps, false);
+  });
+}
+function renderEpisodes(eps, live){
+  var list = $("epList"); if (!list) return;
+  list.innerHTML = "";
+  var rich = live && eps.some(function(ep){ return ep.still || ep.overview; });
+  list.classList.toggle("rich", !!rich);
+  eps.forEach(function(ep){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-ep", ep.n);
+    b.title = t("play") + " S" + epSeason + " E" + ep.n + (ep.title ? " — " + ep.title : "");
+    b.onclick = function(){ selectEpisode(ep.n); };
+    if (rich) {
+      b.className = "ep-rich" + (ep.n === epEpisode ? " on" : "");
+      var thumb = ep.still ? '<img loading="lazy" src="' + imgSrc(IMG + "w300" + ep.still) + '" alt="" onerror="this.style.display=\'none\'">' : "";
+      var meta = [ep.air_date || "", ep.runtime ? ep.runtime + t("minSuffix") : ""].filter(Boolean).join(" · ");
+      b.innerHTML = '<span class="ep-num">' + ep.n + '</span>' +
+        '<span class="ep-thumb">' + thumb + '<span class="ep-play"><span class="circ" style="width:38px;height:38px;border-radius:999px;border:2px solid #fff;display:grid;place-items:center;background:rgba(0,0,0,.5)"><i data-lucide="play" style="width:16px;height:16px"></i></span></span></span>' +
+        '<span class="ep-info"><span class="ep-name">' + esc(ep.title || t("episodeN", ep.n)) + '</span>' +
+        (ep.overview ? '<span class="ep-ov">' + esc(ep.overview) + '</span>' : '') +
+        (meta ? '<span class="ep-meta">' + esc(meta) + '</span>' : '') + '</span>';
+    } else {
+      b.className = "ep-btn" + (ep.n === epEpisode ? " on" : "");
+      b.innerHTML = '<span class="n">E' + ep.n + '</span>' +
+        '<span class="t">' + esc(ep.title || t("episodeN", ep.n)) + '</span>';
+    }
+    list.appendChild(b);
+  });
+  icons();
+  $("epCount").textContent = epCountText(eps.length) + (live ? "" : t("epOfflineSuffix"));
+  epListCount = eps.length;
+  if (pendingLastEp && eps.length) { pendingLastEp = false; selectEpisode(eps[eps.length - 1].n); }
+  updateEpNav();
+}
+function selectEpisode(n){
+  epEpisode = n;
+  document.querySelectorAll("#epList [data-ep]").forEach(function(b){
+    b.classList.toggle("on", Number(b.getAttribute("data-ep")) === n);
+  });
+  if (currentItem) {
+    updateSourceUI(currentItem);
+    var f = $("playerFrame");
+    if (f) { f.src = embedUrl(currentItem); recordHistory(currentItem); }
+  }
+  updateEpNav();
+}
+/* ---------------- Fullscreen + episode prev/next navigation ----------------
+   The Fullscreen button fullscreens the player wrapper (#modalMedia)
+   itself rather than relying on the embed's own fullscreen control,
+   which some providers disable — the iframe already carries
+   allowfullscreen + allow="… fullscreen …", so the wrapper can go
+   fullscreen and the iframe fills it. Prev/Next step through episodes
+   and cross season boundaries; every step funnels through
+   selectEpisode()/setSeason(), so the player reload, the episode-list
+   highlight, the new-tab link and the Continue Watching entry all
+   update together. */
+function toggleFullscreen(){
+  var wrap = $("modalMedia"); if (!wrap) return;
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    return;
+  }
+  try {
+    if (wrap.requestFullscreen) { var p = wrap.requestFullscreen(); if (p && p.catch) p.catch(function(){}); }
+    else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
+    else if (wrap.webkitRequestFullScreen) wrap.webkitRequestFullScreen();
+  } catch (e) {}
+}
+function seasonOrder(){
+  return seasonData.map(function(s){ return s.season_number; });
+}
+function currentSeasonCount(){
+  return epListCount || (seasonMeta(epSeason) || {}).episode_count || 0;
+}
+function setSeason(n, ep){
+  epSeason = n; epEpisode = ep || 1;
+  epListCount = 0;
+  var sel = $("seasonSel"); if (sel) sel.value = String(n);
+  if (currentItem) {
+    updateSourceUI(currentItem);
+    loadEpisodes(currentItem, n);
+    var f = $("playerFrame");
+    if (f) { f.src = embedUrl(currentItem); recordHistory(currentItem); }
+  }
+  updateEpNav();
+}
+function goEpisode(delta){
+  if (!currentItem || typeOf(currentItem) !== "tv") return;
+  var order = seasonOrder();
+  var idx = order.indexOf(epSeason);
+  if (delta > 0) {
+    if (epEpisode < currentSeasonCount()) { selectEpisode(epEpisode + 1); return; }
+    if (idx !== -1 && idx < order.length - 1) setSeason(order[idx + 1], 1);
+  } else if (delta < 0) {
+    if (epEpisode > 1) { selectEpisode(epEpisode - 1); return; }
+    if (idx > 0) {
+      var prev = order[idx - 1];
+      var meta = seasonMeta(prev);
+      if (meta && meta.episode_count) setSeason(prev, meta.episode_count);
+      else { pendingLastEp = true; setSeason(prev, 1); }
+    }
+  }
+  updateEpNav();
+}
+function updateEpNav(){
+  var prev = $("epPrev"), next = $("epNext");
+  if (!prev || !next) return;
+  var order = seasonOrder();
+  var idx = order.indexOf(epSeason);
+  var count = currentSeasonCount();
+  prev.disabled = epEpisode <= 1 && idx <= 0;
+  next.disabled = (!count || epEpisode >= count) && (idx === -1 || idx >= order.length - 1);
+}
+/* Best-effort auto-advance: a few embed providers postMessage an
+   "ended" / playback-finished event when an episode finishes; when
+   one arrives, step to the next episode. Most providers never send
+   it, so the Next Episode button above is the reliable path — this
+   listener only fires when an event actually shows up. */
+var lastAutoAdvance = 0;
 window.addEventListener("message", function(ev){
   if (!currentItem || typeOf(currentItem) !== "tv" || !$("playerFrame")) return;
   var d = ev.data, ended = false;

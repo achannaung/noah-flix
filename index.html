@@ -398,6 +398,16 @@
   .pe-actions .btn{padding:9px 20px;font-size:14.5px}
   .pe-delete{margin-left:auto;background:none;border:0;color:#ff6b6b;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 4px}
   .pe-delete:hover{color:#ff8585;text-decoration:underline}
+  .avatar,.gate-avatar{overflow:hidden}
+  .avatar svg,.gate-avatar svg{width:100%;height:100%;display:block}
+  .pe-hint{font-size:13px;color:var(--muted);line-height:1.55;margin:-4px 0 16px}
+  .avatar-picker{display:flex;flex-wrap:wrap;gap:9px;margin:2px 0 2px}
+  .avatar-opt{width:52px;height:52px;border-radius:9px;overflow:hidden;border:2px solid transparent;background:var(--panel2);
+    cursor:pointer;padding:0;flex:none;font-family:inherit;transition:transform .15s,border-color .15s,box-shadow .15s}
+  .avatar-opt svg{width:100%;height:100%;display:block}
+  .avatar-opt:hover{transform:scale(1.08)}
+  .avatar-opt.on{border-color:#fff;box-shadow:0 0 0 2px var(--red)}
+  .avatar-opt.none{display:grid;place-items:center;color:#e5e5e5;font-weight:800;font-size:20px;background:var(--panel3)}
   @media (max-width:560px){
     .gate-avatar{width:84px;height:84px;font-size:34px}
     .gate-tile{width:96px}
@@ -850,8 +860,11 @@
     </div>
     <div class="profile-edit" id="profileEditForm" style="display:none">
       <h2 id="profileEditTitle">Edit Profile</h2>
+      <p class="pe-hint" id="profileCreateHint" style="display:none" data-i18n="createProfileHint">Set up your first profile to start watching. You can add more profiles later.</p>
       <label class="pe-label" for="profileNameInput" data-i18n="profileName">Name</label>
       <input id="profileNameInput" type="text" maxlength="20" autocomplete="off" />
+      <span class="pe-label" style="margin-top:18px" data-i18n="avatarLabel">Avatar</span>
+      <div class="avatar-picker" id="avatarPicker"></div>
       <label class="pe-kids" for="profileKidsToggle">
         <span class="pe-kids-txt"><span data-i18n="kidsProfileLabel">Kids profile</span>
         <small data-i18n="kidsProfileHint">Only kid-friendly titles — Animation &amp; Family genres</small></span>

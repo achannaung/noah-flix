@@ -651,14 +651,22 @@ function toggleList(it, btn){
 
 /* ---------------- Profiles & Kids Mode ----------------
    Netflix-style profiles in localStorage ("noahflix.profiles.v1").
-   First run ships two built-ins — AChan (standard) and Noah (Kids) —
-   and shows the "Who's watching?" gate; the picked profile is
-   remembered, so later visits open straight into it and switching
-   happens from the header avatar menu (no PIN). Manage mode (gate)
-   adds / renames / deletes profiles (max 4) with a Kids toggle.
+   A true first run (no stored profiles at all) seeds NOTHING: the
+   gate opens the "Create your profile" setup so the user names
+   their own first profile (name + Kids toggle + avatar), and more
+   profiles are added afterwards via Add Profile. Stored profiles
+   are never altered by this — it applies only when no profile data
+   exists. Each profile may pick one of the 10 built-in inline-SVG
+   avatars below (stored as profile.avatar); with none chosen, tiles
+   fall back to the name's initial letter on the profile color.
+   The picked profile is remembered, so later visits open straight
+   into it and switching happens from the header avatar menu (no
+   PIN). Manage mode (gate) adds / renames / deletes profiles
+   (max 4) with a Kids toggle.
    My List and Continue Watching are stored per profile
    ("noahflix.mylist.<id>" / "noahflix.history.<id>"); the
-   pre-profiles history key is migrated under the default profile.
+   pre-profiles history key is migrated under the first profile
+   the user creates.
    A Kids profile filters the WHOLE catalog to titles whose genres
    include Animation (16) or Family (10751) — hero, rows, Top 10,
    search, discover, person filmographies and More Like This — and
@@ -672,13 +680,37 @@ var MAX_PROFILES = 4;
 var profiles = [];
 var activeProfileId = null;
 var gateManage = false, gateCanClose = false, editingProfileId = null;
+var editingAvatar = null;   /* avatar id chosen in the open editor (null = initial letter) */
 var homeKidsRendered = null;   /* kids flag the current home rows were rendered with */
 
-function defaultProfiles(){
-  return [
-    { id: "achan", name: "AChan", kids: false, color: PROFILE_COLORS[0] },
-    { id: "noah", name: "Noah", kids: true, color: PROFILE_COLORS[1] }
-  ];
+/* 10 built-in profile avatars — inline SVG only, no external files.
+   Each is a self-contained 100×100 scene (own background + character)
+   so it can drop into any tile size. */
+var AVATARS = [
+  { id: "fox", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#ea580c"/><polygon points="24,10 42,30 24,44" fill="#c2410c"/><polygon points="76,10 58,30 76,44" fill="#c2410c"/><polygon points="28,18 39,30 28,39" fill="#ffedd5"/><polygon points="72,18 61,30 72,39" fill="#ffedd5"/><circle cx="50" cy="58" r="29" fill="#fb923c"/><ellipse cx="27" cy="68" rx="8" ry="6" fill="#ffedd5" opacity=".85"/><ellipse cx="73" cy="68" rx="8" ry="6" fill="#ffedd5" opacity=".85"/><ellipse cx="50" cy="70" rx="15" ry="11" fill="#fff7ed"/><circle cx="38" cy="53" r="3.6" fill="#431407"/><circle cx="62" cy="53" r="3.6" fill="#431407"/><ellipse cx="50" cy="65" rx="5" ry="3.6" fill="#431407"/></svg>' },
+  { id: "cat", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#6d28d9"/><polygon points="25,36 29,12 47,27" fill="#7c3aed"/><polygon points="75,36 71,12 53,27" fill="#7c3aed"/><polygon points="29,30 31,19 41,26" fill="#f9a8d4"/><polygon points="71,30 69,19 59,26" fill="#f9a8d4"/><circle cx="50" cy="59" r="28" fill="#a78bfa"/><circle cx="39" cy="56" r="3.6" fill="#1e1b4b"/><circle cx="61" cy="56" r="3.6" fill="#1e1b4b"/><polygon points="50,62 45.5,67 54.5,67" fill="#ec4899"/><path d="M50 67 q0 4 -5 4 M50 67 q0 4 5 4" stroke="#1e1b4b" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M14 58 h14 M16 68 l13 -3 M86 58 H72 M84 68 l-13 -3" stroke="#ddd6fe" stroke-width="2" stroke-linecap="round"/></svg>' },
+  { id: "robot", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#1d4ed8"/><line x1="50" y1="14" x2="50" y2="27" stroke="#93c5fd" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="11" r="5" fill="#facc15"/><rect x="15" y="42" width="8" height="17" rx="3.5" fill="#94a3b8"/><rect x="77" y="42" width="8" height="17" rx="3.5" fill="#94a3b8"/><rect x="23" y="26" width="54" height="46" rx="11" fill="#cbd5e1"/><circle cx="40" cy="45" r="5.5" fill="#0284c7"/><circle cx="60" cy="45" r="5.5" fill="#0284c7"/><rect x="38" y="59" width="24" height="5.5" rx="2.75" fill="#475569"/><rect x="41" y="74" width="18" height="7" fill="#94a3b8"/></svg>' },
+  { id: "dog", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#92400e"/><ellipse cx="21" cy="47" rx="10" ry="21" fill="#78350f" transform="rotate(14 21 47)"/><ellipse cx="79" cy="47" rx="10" ry="21" fill="#78350f" transform="rotate(-14 79 47)"/><circle cx="50" cy="55" r="28" fill="#d99a4e"/><circle cx="65" cy="40" r="8.5" fill="#b45309" opacity=".55"/><circle cx="38" cy="49" r="3.6" fill="#451a03"/><circle cx="62" cy="49" r="3.6" fill="#451a03"/><ellipse cx="50" cy="67" rx="14.5" ry="10.5" fill="#fde8cd"/><ellipse cx="50" cy="61" rx="6" ry="4.5" fill="#451a03"/><rect x="45" y="73" width="10" height="9" rx="4.5" fill="#f472b6"/></svg>' },
+  { id: "owl", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#134e4a"/><polygon points="26,26 34,10 44,22" fill="#d97706"/><polygon points="74,26 66,10 56,22" fill="#d97706"/><ellipse cx="50" cy="57" rx="29" ry="33" fill="#f59e0b"/><ellipse cx="50" cy="73" rx="14" ry="11" fill="#fde68a"/><circle cx="38" cy="48" r="10.5" fill="#fffbeb"/><circle cx="62" cy="48" r="10.5" fill="#fffbeb"/><circle cx="38" cy="48" r="4.6" fill="#1c1917"/><circle cx="62" cy="48" r="4.6" fill="#1c1917"/><polygon points="50,56 44.5,61.5 55.5,61.5" fill="#ea580c"/></svg>' },
+  { id: "bear", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#15803d"/><circle cx="26" cy="27" r="11.5" fill="#a06a35"/><circle cx="74" cy="27" r="11.5" fill="#a06a35"/><circle cx="26" cy="27" r="5.5" fill="#e3c08f"/><circle cx="74" cy="27" r="5.5" fill="#e3c08f"/><circle cx="50" cy="57" r="29" fill="#b07d4f"/><circle cx="38" cy="51" r="3.6" fill="#3f2a17"/><circle cx="62" cy="51" r="3.6" fill="#3f2a17"/><ellipse cx="50" cy="68" rx="15" ry="11" fill="#eed9b7"/><ellipse cx="50" cy="62.5" rx="6" ry="4.5" fill="#3f2a17"/><path d="M50 67 v4 M50 71 q-4 4 -8 2.5 M50 71 q4 4 8 2.5" stroke="#3f2a17" stroke-width="2" fill="none" stroke-linecap="round"/></svg>' },
+  { id: "penguin", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#1e3a5f"/><ellipse cx="50" cy="55" rx="28" ry="34" fill="#0f172a"/><ellipse cx="50" cy="65" rx="18" ry="24" fill="#f8fafc"/><circle cx="41" cy="42" r="3.4" fill="#f8fafc"/><circle cx="59" cy="42" r="3.4" fill="#f8fafc"/><polygon points="50,47 42.5,53 57.5,53" fill="#f59e0b"/><ellipse cx="35" cy="90" rx="8.5" ry="3.6" fill="#f59e0b"/><ellipse cx="65" cy="90" rx="8.5" ry="3.6" fill="#f59e0b"/></svg>' },
+  { id: "dino", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#4d7c0f"/><polygon points="33,26 38,10 47,22" fill="#365314"/><polygon points="50,22 57,7 64,21" fill="#365314"/><polygon points="63,24 72,12 76,28" fill="#365314"/><rect x="24" y="24" width="52" height="50" rx="17" fill="#84cc16"/><circle cx="39" cy="46" r="3.8" fill="#1a2e05"/><circle cx="61" cy="46" r="3.8" fill="#1a2e05"/><ellipse cx="50" cy="63" rx="17" ry="10.5" fill="#bef264"/><circle cx="44" cy="60" r="1.8" fill="#3f6212"/><circle cx="56" cy="60" r="1.8" fill="#3f6212"/><path d="M43 66 q7 4.5 14 0" stroke="#3f6212" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>' },
+  { id: "rocket", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#312e81"/><circle cx="20" cy="22" r="2" fill="#fff" opacity=".85"/><circle cx="82" cy="16" r="2.4" fill="#fff" opacity=".7"/><circle cx="86" cy="52" r="1.8" fill="#fff" opacity=".8"/><circle cx="14" cy="58" r="1.6" fill="#fff" opacity=".6"/><path d="M35 50 C26 59 23 69 23 76 L35 70 Z" fill="#ef4444"/><path d="M65 50 C74 59 77 69 77 76 L65 70 Z" fill="#ef4444"/><path d="M50 10 C62 22 66 38 66 55 L34 55 C34 38 38 22 50 10 Z" fill="#e2e8f0"/><circle cx="50" cy="36" r="8.5" fill="#38bdf8" stroke="#94a3b8" stroke-width="2.5"/><path d="M41 68 C43.5 79 46.5 86 50 92 C53.5 86 56.5 79 59 68 Z" fill="#f59e0b"/><path d="M45.5 68 C47 75 48.5 79.5 50 83 C51.5 79.5 53 75 54.5 68 Z" fill="#fde68a"/></svg>' },
+  { id: "sun", svg: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" fill="#0369a1"/><g stroke="#fde047" stroke-width="5" stroke-linecap="round"><line x1="50" y1="8" x2="50" y2="18"/><line x1="50" y1="82" x2="50" y2="92"/><line x1="8" y1="50" x2="18" y2="50"/><line x1="82" y1="50" x2="92" y2="50"/><line x1="20" y1="20" x2="27" y2="27"/><line x1="73" y1="73" x2="80" y2="80"/><line x1="80" y1="20" x2="73" y2="27"/><line x1="27" y1="73" x2="20" y2="80"/></g><circle cx="50" cy="50" r="21" fill="#fde047"/><circle cx="43" cy="47" r="2.8" fill="#713f12"/><circle cx="57" cy="47" r="2.8" fill="#713f12"/><path d="M42 55 q8 6.5 16 0" stroke="#713f12" stroke-width="2.6" fill="none" stroke-linecap="round"/><circle cx="36.5" cy="54" r="3" fill="#fda4af" opacity=".85"/><circle cx="63.5" cy="54" r="3" fill="#fda4af" opacity=".85"/></svg>' }
+];
+function avatarById(id){
+  if (!id) return null;
+  for (var i = 0; i < AVATARS.length; i++) if (AVATARS[i].id === id) return AVATARS[i];
+  return null;
+}
+/* Tile content for a profile: the chosen avatar's SVG, or the
+   name's initial letter (the tile keeps the profile color then). */
+function profileAvatarHTML(p){
+  var a = avatarById(p && p.avatar);
+  return a ? a.svg : esc(profileInitial(p));
+}
+function profileAvatarStyle(p){
+  return avatarById(p && p.avatar) ? "background:transparent" : "background:" + esc((p && p.color) || PROFILE_COLORS[0]);
 }
 function saveProfiles(){
   try { localStorage.setItem(PROFILES_KEY, JSON.stringify({ list: profiles, active: activeProfileId })); } catch (e) {}
@@ -730,18 +762,12 @@ function initProfiles(){
     activeProfileId = stored.active || null;
     if (activeProfileId && !profiles.some(function(p){ return p.id === activeProfileId; })) activeProfileId = null;
   }
-  if (!profiles.length) {
-    profiles = defaultProfiles();
-    activeProfileId = null;
-    /* Migrate the pre-profiles watch history under the default profile */
-    try {
-      var legacy = localStorage.getItem(LEGACY_HISTORY_KEY);
-      if (legacy && !localStorage.getItem(HISTORY_PREFIX + "achan"))
-        localStorage.setItem(HISTORY_PREFIX + "achan", legacy);
-      if (legacy) localStorage.removeItem(LEGACY_HISTORY_KEY);
-    } catch (e) {}
-    saveProfiles();
-  }
+  /* No stored profiles = true first run: profiles stays empty and
+     nothing is written to storage. initProfileUI opens the gate
+     straight into the "Create your profile" setup, and the first
+     profile the user creates adopts any pre-profiles watch history
+     (see saveProfileEditor). Existing stored profiles — including
+     ones seeded by older builds — load exactly as before. */
   loadMyListData();
 }
 initProfiles();
@@ -750,7 +776,7 @@ function profileInitial(p){ return ((p && p.name) || "?").trim().charAt(0).toUpp
 function updateProfileUI(){
   var p = activeProfile(); if (!p) return;
   var av = $("profileAvatar");
-  if (av) { av.textContent = profileInitial(p); av.style.background = p.color || PROFILE_COLORS[0]; }
+  if (av) { av.innerHTML = profileAvatarHTML(p); av.style.background = avatarById(p.avatar) ? "transparent" : (p.color || PROFILE_COLORS[0]); }
   var kb = $("kidsBadge");
   if (kb) { kb.style.display = p.kids ? "inline-flex" : "none"; kb.textContent = t("kidsBadge"); }
   var btn = $("profileBtn");
@@ -770,8 +796,8 @@ function applyProfileLayout(){
 }
 function renderGate(){
   var gate = $("profileGate"); if (!gate) return;
-  $("gateTitle").textContent = gateManage ? t("manageProfiles") : t("whosWatching");
-  $("gateManageBtn").style.display = gateManage ? "none" : "";
+  $("gateTitle").textContent = gateManage ? t("manageProfiles") : (profiles.length ? t("whosWatching") : t("createYourProfile"));
+  $("gateManageBtn").style.display = (gateManage || !profiles.length) ? "none" : "";
   $("gateDoneBtn").style.display = gateManage ? "" : "none";
   $("gateClose").style.display = gateCanClose ? "" : "none";
   var wrap = $("gateTiles"); wrap.innerHTML = "";
@@ -779,7 +805,7 @@ function renderGate(){
     var b = document.createElement("button");
     b.type = "button"; b.className = "gate-tile";
     b.setAttribute("aria-label", p.name);
-    b.innerHTML = '<span class="gate-avatar" style="background:' + esc(p.color || PROFILE_COLORS[0]) + '">' + esc(profileInitial(p)) +
+    b.innerHTML = '<span class="gate-avatar" style="' + profileAvatarStyle(p) + '">' + profileAvatarHTML(p) +
       (gateManage ? '<span class="gate-edit"><i data-lucide="pencil" style="width:17px;height:17px"></i></span>' : "") + '</span>' +
       '<span class="gate-name">' + esc(p.name) + '</span>' +
       (p.kids ? '<span class="kids-pill-sm">' + esc(t("kidsBadge")) + '</span>' : "");
@@ -809,20 +835,54 @@ function closeGate(){
   gateManage = false; gateCanClose = false;
   closeProfileEditor();
 }
+function renderAvatarPicker(){
+  var wrap = $("avatarPicker"); if (!wrap) return;
+  wrap.innerHTML = "";
+  var none = document.createElement("button");
+  none.type = "button";
+  none.className = "avatar-opt none" + (!editingAvatar ? " on" : "");
+  none.title = t("avatarNone");
+  none.setAttribute("aria-label", t("avatarNone"));
+  none.setAttribute("aria-pressed", !editingAvatar ? "true" : "false");
+  var nm = $("profileNameInput").value.trim();
+  none.textContent = nm ? nm.charAt(0).toUpperCase() : "?";
+  none.onclick = function(){ editingAvatar = null; renderAvatarPicker(); };
+  wrap.appendChild(none);
+  AVATARS.forEach(function(a){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "avatar-opt" + (editingAvatar === a.id ? " on" : "");
+    b.title = a.id;
+    b.setAttribute("aria-label", "Avatar: " + a.id);
+    b.setAttribute("aria-pressed", editingAvatar === a.id ? "true" : "false");
+    b.innerHTML = a.svg;
+    b.onclick = function(){ editingAvatar = a.id; renderAvatarPicker(); };
+    wrap.appendChild(b);
+  });
+}
 function openProfileEditor(id){
   editingProfileId = id;
   var p = null;
   profiles.forEach(function(x){ if (x.id === id) p = x; });
-  $("profileEditTitle").textContent = p ? t("editProfile") : t("addProfile");
+  var firstRun = !p && profiles.length === 0;
+  $("profileEditTitle").textContent = p ? t("editProfile") : (firstRun ? t("createYourProfile") : t("addProfile"));
+  $("profileCreateHint").style.display = firstRun ? "" : "none";
+  $("gateTitle").style.display = firstRun ? "none" : "";
   $("profileNameInput").value = p ? p.name : "";
   $("profileKidsToggle").checked = p ? !!p.kids : false;
   $("profileDeleteBtn").style.display = (p && profiles.length > 1) ? "" : "none";
+  $("profileCancelBtn").style.display = firstRun ? "none" : "";
+  editingAvatar = p ? (p.avatar || null) : null;
+  renderAvatarPicker();
   $("profileEditForm").style.display = "block";
   $("gateTiles").style.display = "none";
   $("gateActions").style.display = "none";
+  if (firstRun) setTimeout(function(){ var inp = $("profileNameInput"); if (inp) inp.focus(); }, 60);
 }
 function closeProfileEditor(){
   editingProfileId = null;
+  editingAvatar = null;
+  var gt = $("gateTitle"); if (gt) gt.style.display = "";
   var f = $("profileEditForm"); if (f) f.style.display = "none";
   var tiles = $("gateTiles"); if (tiles) tiles.style.display = "";
   var act = $("gateActions"); if (act) act.style.display = "";
@@ -832,17 +892,30 @@ function saveProfileEditor(){
   if (!name) { $("profileNameInput").focus(); return; }
   var kids = $("profileKidsToggle").checked;
   var editedId = editingProfileId;
+  var wasFirst = false;
   if (editedId) {
-    profiles.forEach(function(x){ if (x.id === editedId) { x.name = name; x.kids = kids; } });
+    profiles.forEach(function(x){ if (x.id === editedId) { x.name = name; x.kids = kids; x.avatar = editingAvatar || null; } });
   } else {
     if (profiles.length >= MAX_PROFILES) return;
+    wasFirst = profiles.length === 0;
     var np = { id: "p" + Date.now().toString(36), name: name, kids: kids,
+               avatar: editingAvatar || null,
                color: PROFILE_COLORS[profiles.length % PROFILE_COLORS.length] };
     profiles.push(np);
     editedId = np.id;
+    if (wasFirst) {
+      /* Adopt any pre-profiles watch history under the first profile */
+      try {
+        var legacy = localStorage.getItem(LEGACY_HISTORY_KEY);
+        if (legacy && !localStorage.getItem(HISTORY_PREFIX + np.id))
+          localStorage.setItem(HISTORY_PREFIX + np.id, legacy);
+        if (legacy) localStorage.removeItem(LEGACY_HISTORY_KEY);
+      } catch (e) {}
+    }
   }
   saveProfiles();
   closeProfileEditor();
+  if (wasFirst) { enterProfile(editedId); return; }
   renderGate();
   buildProfileMenu();
   updateProfileUI();
@@ -899,7 +972,7 @@ function buildProfileMenu(){
   profiles.forEach(function(p){
     var b = document.createElement("button");
     b.type = "button"; b.className = "profile-menu-item";
-    b.innerHTML = '<span class="avatar avatar-sm" style="background:' + esc(p.color || PROFILE_COLORS[0]) + '">' + esc(profileInitial(p)) + '</span>' +
+    b.innerHTML = '<span class="avatar avatar-sm" style="' + profileAvatarStyle(p) + '">' + profileAvatarHTML(p) + '</span>' +
       '<span class="pm-name">' + esc(p.name) + '</span>' +
       (p.kids ? '<span class="kids-pill-sm">' + esc(t("kidsBadge")) + '</span>' : "") +
       (p.id === activeProfileId ? '<i data-lucide="check" style="width:15px;height:15px;margin-left:auto;flex:none"></i>' : "");
@@ -933,12 +1006,19 @@ function initProfileUI(){
   $("gateDoneBtn").addEventListener("click", function(){ gateManage = false; closeProfileEditor(); renderGate(); });
   $("gateClose").addEventListener("click", function(){ closeGate(); });
   $("profileSaveBtn").addEventListener("click", saveProfileEditor);
+  $("profileNameInput").addEventListener("input", function(){ if (!editingAvatar) renderAvatarPicker(); });
+  $("profileNameInput").addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); saveProfileEditor(); } });
   $("profileCancelBtn").addEventListener("click", function(){ closeProfileEditor(); renderGate(); });
   $("profileDeleteBtn").addEventListener("click", deleteEditedProfile);
   buildProfileMenu();
   updateProfileUI();
   applyProfileLayout();
-  if (!activeProfileId) openGate(false, false);
+  if (!activeProfileId) {
+    openGate(false, false);
+    /* True first run (no profiles at all): go straight into the
+       "Create your profile" setup instead of an empty gate. */
+    if (!profiles.length) openProfileEditor(null);
+  }
 }
 
 /* ---------------- Kids rows (Kids profiles only) ----------------
@@ -1143,241 +1223,3 @@ function openModal(it, autoplay){
   }).catch(function(){});
 }
 var enrichedFor = "";
-function openModalRefresh(it){
-  var g = genreNames(it);
-  $("modalGenres").innerHTML = g.map(function(n){ return '<span class="chip">' + esc(n) + '</span>'; }).join("");
-  var ov = overviewOf(it);
-  if (ov) $("modalOverview").textContent = ov;
-  if (enrichedFor === keyOf(it)) return;
-  enrichedFor = keyOf(it);
-  var facts = $("modalFacts").innerHTML;
-  var extra = "";
-  if (it.runtime) extra += "<div><b>" + t("factRuntime") + ":</b> <span>" + it.runtime + t("minSuffix") + "</span></div>";
-  if (it.number_of_seasons) extra += "<div><b>" + t("factSeasons") + ":</b> <span>" + it.number_of_seasons + "</span></div>";
-  if (it.status) extra += "<div><b>" + t("factStatus") + ":</b> <span>" + esc(it.status) + "</span></div>";
-  if (extra) $("modalFacts").innerHTML = facts + extra;
-}
-function startPlayer(it){
-  var media = $("modalMedia");
-  stopPlayer();
-  var f = document.createElement("iframe");
-  f.id = "playerFrame";
-  f.src = embedUrl(it);
-  f.title = "Player — " + titleOf(it);
-  f.setAttribute("allowfullscreen", "true");
-  f.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
-  f.setAttribute("referrerpolicy", "origin");
-  media.appendChild(f);
-  $("modalBackdrop").style.display = "none";
-  $("modalFade").style.display = "none";
-  $("modalTitlebar").style.display = "none";
-  recordHistory(it);
-}
-function stopPlayer(){
-  var f = $("playerFrame");
-  if (f) f.remove();
-  var tf = $("trailerFrame");
-  if (tf) tf.remove();
-  var back = $("trailerBack"); if (back) back.classList.remove("show");
-}
-
-/* ---------------- Season dropdown + episode list (TV only) ----------------
-   Seasons come from the TMDB show record (/tv/{id} -> seasons[]), and the
-   episode list from /tv/{id}/season/{n}. Picking an episode updates the
-   shared epSeason/epEpisode state, so every source's embed URL and the
-   "open player in a new tab" link follow the selection. When TMDB is
-   unreachable (offline snapshot mode), the picker falls back to a
-   Season 1..N dropdown and numbered episodes without titles. */
-var seasonData = [];   /* [{season_number, name, episode_count}] */
-var epListCount = 0;   /* episodes in the currently rendered list (for prev/next bounds) */
-var pendingLastEp = false; /* prev-season jump: select the last episode once its list loads */
-function initEpisodePicker(it){
-  var wrap = $("epWrap");
-  if (typeOf(it) !== "tv") { wrap.style.display = "none"; return; }
-  wrap.style.display = "block";
-  seasonData = [];
-  var sel = $("seasonSel");
-  sel.innerHTML = '<option value="1">' + t("seasonN", 1) + '</option>';
-  sel.value = "1";
-  $("epList").innerHTML = '<span class="ep-note">' + t("loadingEpisodes") + '</span>';
-  $("epCount").textContent = "";
-  function useSeasons(list){
-    if (!currentItem || currentItem.id !== it.id) return;
-    seasonData = (list || []).filter(function(s){ return s && s.season_number != null; });
-    if (!seasonData.length) seasonData = [{ season_number: 1, name: t("seasonN", 1), episode_count: null }];
-    sel.innerHTML = "";
-    seasonData.forEach(function(s){
-      var o = document.createElement("option");
-      o.value = String(s.season_number);
-      o.textContent = s.name || t("seasonN", s.season_number);
-      sel.appendChild(o);
-    });
-    var first = seasonData.filter(function(s){ return s.season_number >= 1; })[0] || seasonData[0];
-    epSeason = first.season_number; epEpisode = 1;
-    /* Resuming from Continue Watching: jump back to the saved
-       season/episode instead of S1E1, and reload a player that is
-       already open so it lands on the right episode. */
-    if (pendingResume && pendingResume.id === it.id) {
-      var want = seasonData.filter(function(s){ return s.season_number === pendingResume.season; })[0];
-      if (want) epSeason = want.season_number;
-      epEpisode = pendingResume.episode || 1;
-      pendingResume = null;
-    }
-    sel.value = String(epSeason);
-    updateSourceUI(it);
-    var pf = $("playerFrame");
-    if (pf) { pf.src = embedUrl(it); recordHistory(it); }
-    loadEpisodes(it, epSeason);
-  }
-  if (it.seasons && it.seasons.length) { useSeasons(it.seasons); return; }
-  fetchJSON("/tv/" + it.id).then(function(d){
-    useSeasons(d && d.seasons);
-  }).catch(function(){
-    var n = Math.max(1, it.number_of_seasons || 1), list = [];
-    for (var i = 1; i <= n; i++) list.push({ season_number: i, name: t("seasonN", i), episode_count: null });
-    useSeasons(list);
-  });
-}
-function seasonMeta(n){
-  for (var i = 0; i < seasonData.length; i++) if (seasonData[i].season_number === n) return seasonData[i];
-  return null;
-}
-function loadEpisodes(it, seasonNumber){
-  var list = $("epList"); if (!list) return;
-  list.innerHTML = '<span class="ep-note">' + t("loadingEpisodes") + '</span>';
-  $("epCount").textContent = "";
-  fetchJSON("/tv/" + it.id + "/season/" + seasonNumber).then(function(d){
-    if (!currentItem || currentItem.id !== it.id) return;
-    var eps = (d && d.episodes) || [];
-    if (!eps.length) throw new Error("no episodes");
-    renderEpisodes(eps.map(function(ep){
-      return { n: ep.episode_number, title: ep.name || "", still: ep.still_path || "", overview: ep.overview || "", runtime: ep.runtime || null, air_date: ep.air_date || "" };
-    }), true);
-  }).catch(function(){
-    if (!currentItem || currentItem.id !== it.id) return;
-    var meta = seasonMeta(seasonNumber);
-    var count = (meta && meta.episode_count) || 10;
-    var eps = [];
-    for (var i = 1; i <= count; i++) eps.push({ n: i, title: "" });
-    renderEpisodes(eps, false);
-  });
-}
-function renderEpisodes(eps, live){
-  var list = $("epList"); if (!list) return;
-  list.innerHTML = "";
-  var rich = live && eps.some(function(ep){ return ep.still || ep.overview; });
-  list.classList.toggle("rich", !!rich);
-  eps.forEach(function(ep){
-    var b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("data-ep", ep.n);
-    b.title = t("play") + " S" + epSeason + " E" + ep.n + (ep.title ? " — " + ep.title : "");
-    b.onclick = function(){ selectEpisode(ep.n); };
-    if (rich) {
-      b.className = "ep-rich" + (ep.n === epEpisode ? " on" : "");
-      var thumb = ep.still ? '<img loading="lazy" src="' + imgSrc(IMG + "w300" + ep.still) + '" alt="" onerror="this.style.display=\'none\'">' : "";
-      var meta = [ep.air_date || "", ep.runtime ? ep.runtime + t("minSuffix") : ""].filter(Boolean).join(" · ");
-      b.innerHTML = '<span class="ep-num">' + ep.n + '</span>' +
-        '<span class="ep-thumb">' + thumb + '<span class="ep-play"><span class="circ" style="width:38px;height:38px;border-radius:999px;border:2px solid #fff;display:grid;place-items:center;background:rgba(0,0,0,.5)"><i data-lucide="play" style="width:16px;height:16px"></i></span></span></span>' +
-        '<span class="ep-info"><span class="ep-name">' + esc(ep.title || t("episodeN", ep.n)) + '</span>' +
-        (ep.overview ? '<span class="ep-ov">' + esc(ep.overview) + '</span>' : '') +
-        (meta ? '<span class="ep-meta">' + esc(meta) + '</span>' : '') + '</span>';
-    } else {
-      b.className = "ep-btn" + (ep.n === epEpisode ? " on" : "");
-      b.innerHTML = '<span class="n">E' + ep.n + '</span>' +
-        '<span class="t">' + esc(ep.title || t("episodeN", ep.n)) + '</span>';
-    }
-    list.appendChild(b);
-  });
-  icons();
-  $("epCount").textContent = epCountText(eps.length) + (live ? "" : t("epOfflineSuffix"));
-  epListCount = eps.length;
-  if (pendingLastEp && eps.length) { pendingLastEp = false; selectEpisode(eps[eps.length - 1].n); }
-  updateEpNav();
-}
-function selectEpisode(n){
-  epEpisode = n;
-  document.querySelectorAll("#epList [data-ep]").forEach(function(b){
-    b.classList.toggle("on", Number(b.getAttribute("data-ep")) === n);
-  });
-  if (currentItem) {
-    updateSourceUI(currentItem);
-    var f = $("playerFrame");
-    if (f) { f.src = embedUrl(currentItem); recordHistory(currentItem); }
-  }
-  updateEpNav();
-}
-/* ---------------- Fullscreen + episode prev/next navigation ----------------
-   The Fullscreen button fullscreens the player wrapper (#modalMedia)
-   itself rather than relying on the embed's own fullscreen control,
-   which some providers disable — the iframe already carries
-   allowfullscreen + allow="… fullscreen …", so the wrapper can go
-   fullscreen and the iframe fills it. Prev/Next step through episodes
-   and cross season boundaries; every step funnels through
-   selectEpisode()/setSeason(), so the player reload, the episode-list
-   highlight, the new-tab link and the Continue Watching entry all
-   update together. */
-function toggleFullscreen(){
-  var wrap = $("modalMedia"); if (!wrap) return;
-  if (document.fullscreenElement || document.webkitFullscreenElement) {
-    if (document.exitFullscreen) document.exitFullscreen();
-    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-    return;
-  }
-  try {
-    if (wrap.requestFullscreen) { var p = wrap.requestFullscreen(); if (p && p.catch) p.catch(function(){}); }
-    else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
-    else if (wrap.webkitRequestFullScreen) wrap.webkitRequestFullScreen();
-  } catch (e) {}
-}
-function seasonOrder(){
-  return seasonData.map(function(s){ return s.season_number; });
-}
-function currentSeasonCount(){
-  return epListCount || (seasonMeta(epSeason) || {}).episode_count || 0;
-}
-function setSeason(n, ep){
-  epSeason = n; epEpisode = ep || 1;
-  epListCount = 0;
-  var sel = $("seasonSel"); if (sel) sel.value = String(n);
-  if (currentItem) {
-    updateSourceUI(currentItem);
-    loadEpisodes(currentItem, n);
-    var f = $("playerFrame");
-    if (f) { f.src = embedUrl(currentItem); recordHistory(currentItem); }
-  }
-  updateEpNav();
-}
-function goEpisode(delta){
-  if (!currentItem || typeOf(currentItem) !== "tv") return;
-  var order = seasonOrder();
-  var idx = order.indexOf(epSeason);
-  if (delta > 0) {
-    if (epEpisode < currentSeasonCount()) { selectEpisode(epEpisode + 1); return; }
-    if (idx !== -1 && idx < order.length - 1) setSeason(order[idx + 1], 1);
-  } else if (delta < 0) {
-    if (epEpisode > 1) { selectEpisode(epEpisode - 1); return; }
-    if (idx > 0) {
-      var prev = order[idx - 1];
-      var meta = seasonMeta(prev);
-      if (meta && meta.episode_count) setSeason(prev, meta.episode_count);
-      else { pendingLastEp = true; setSeason(prev, 1); }
-    }
-  }
-  updateEpNav();
-}
-function updateEpNav(){
-  var prev = $("epPrev"), next = $("epNext");
-  if (!prev || !next) return;
-  var order = seasonOrder();
-  var idx = order.indexOf(epSeason);
-  var count = currentSeasonCount();
-  prev.disabled = epEpisode <= 1 && idx <= 0;
-  next.disabled = (!count || epEpisode >= count) && (idx === -1 || idx >= order.length - 1);
-}
-/* Best-effort auto-advance: a few embed providers postMessage an
-   "ended" / playback-finished event when an episode finishes; when
-   one arrives, step to the next episode. Most providers never send
-   it, so the Next Episode button above is the reliable path — this
-   listener only fires when an event actually shows up. */
-var lastAutoAdvance = 0;
